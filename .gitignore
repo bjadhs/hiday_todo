@@ -34,5 +34,5 @@ yarn-error.log*
 .vercel
 
 # agent / assistant docs (local only)
-CLAUDE.md
-AGENTS.md
+# CLAUDE.md
+# AGENTS.md
