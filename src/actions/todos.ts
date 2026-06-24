@@ -2,6 +2,7 @@
 
 import { eq, sql } from "drizzle-orm"
 import { getDb, schema } from "@/lib/db"
+import { notifyChange } from "@/lib/db/realtime"
 import { assertAuthed } from "@/lib/auth-server"
 import type { Todo, KanbanStatus } from "@/lib/types"
 
@@ -25,6 +26,7 @@ export async function createTodo(todo: Todo): Promise<void> {
     createdAt: todo.createdAt,
     position: count,
   })
+  await notifyChange()
 }
 
 /** Apply a partial update to a todo. Keys map 1:1 to columns. */
@@ -32,11 +34,13 @@ export async function updateTodo(id: string, updates: Partial<Todo>): Promise<vo
   await assertAuthed()
   if (Object.keys(updates).length === 0) return
   await getDb().update(schema.todos).set(updates).where(eq(schema.todos.id, id))
+  await notifyChange()
 }
 
 export async function removeTodo(id: string): Promise<void> {
   await assertAuthed()
   await getDb().delete(schema.todos).where(eq(schema.todos.id, id))
+  await notifyChange()
 }
 
 /**
@@ -61,4 +65,5 @@ export async function moveTodo(
       )
     )
   })
+  await notifyChange()
 }

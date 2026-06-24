@@ -40,13 +40,12 @@ export function TodoList({ projectId: rawProjectId }: { projectId?: string }) {
   const setFilterMode = useTodoStore((s) => s.setFilterMode)
   const viewMode = useTodoStore((s) => s.viewMode)
   const setViewMode = useTodoStore((s) => s.setViewMode)
-  const projects = useTodoStore((s) => s.projects)
+  const addOpen = useTodoStore((s) => s.addOpen)
 
   const selectedProjectId = rawProjectId === "inbox" ? "__inbox__" : rawProjectId ?? "__all__"
   const mounted = useMounted()
 
   const isAll = selectedProjectId === "__all__"
-  const currentProject = isAll ? null : projects.find((p) => p.id === selectedProjectId)
 
   const projectTodos = useMemo(
     () => filterByProject(todos, selectedProjectId),
@@ -69,18 +68,12 @@ export function TodoList({ projectId: rawProjectId }: { projectId?: string }) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b-2 border-border-strong px-6 py-3">
-        <div className="flex items-center gap-2">
-          <span className="text-xl leading-none">{isAll ? "📋" : currentProject?.icon ?? "📥"}</span>
-          <h1 className="text-lg font-bold">{isAll ? "All" : currentProject?.name ?? "Inbox"}</h1>
-          <span className="rounded-md border border-border-strong bg-surface px-2 py-0.5 text-xs font-bold text-foreground-muted">
+      <div className="flex items-center justify-between border-b-2 border-border-strong bg-surface px-6 py-2">
+        <div className="flex items-center gap-3">
+          <span className="rounded-md border border-border-strong bg-background-elevated px-2 py-0.5 text-xs font-bold text-foreground-muted">
             {totalTodos}
           </span>
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between border-b-2 border-border-strong bg-surface px-6 py-2">
-        <div className="flex gap-1">
+          <div className="flex gap-1">
           {/* Grouping filters only apply to the list/grid views; the kanban
               board has its own fixed status columns. */}
           {!isKanban &&
@@ -99,6 +92,7 @@ export function TodoList({ projectId: rawProjectId }: { projectId?: string }) {
                 {tab.label}
               </button>
             ))}
+          </div>
         </div>
         <div className="flex gap-0.5">
           {VIEW_TABS.map((tab) => (
@@ -121,8 +115,15 @@ export function TodoList({ projectId: rawProjectId }: { projectId?: string }) {
       </div>
 
       {isKanban ? (
-        <div className="min-h-0 flex-1 p-6">
-          <KanbanBoard todos={projectTodos} projectId={newTodoProjectId} />
+        <div className="flex min-h-0 flex-1 flex-col gap-4 p-6">
+          {addOpen && (
+            <div className="mx-auto w-full max-w-2xl">
+              <AddTodo />
+            </div>
+          )}
+          <div className="min-h-0 flex-1">
+            <KanbanBoard todos={projectTodos} projectId={newTodoProjectId} />
+          </div>
         </div>
       ) : (
       <div className="flex-1 overflow-y-auto p-6">
@@ -145,6 +146,7 @@ export function TodoList({ projectId: rawProjectId }: { projectId?: string }) {
               filterMode={filterMode}
               viewMode={viewMode}
               gridClass={gridClass}
+              projectId={newTodoProjectId}
             />
           )}
         </div>

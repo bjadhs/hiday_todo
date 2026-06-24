@@ -2,6 +2,7 @@
 
 import { eq, sql } from "drizzle-orm"
 import { getDb, schema } from "@/lib/db"
+import { notifyChange } from "@/lib/db/realtime"
 import { assertAuthed } from "@/lib/auth-server"
 import { ProjectInputSchema } from "@/lib/schemas"
 import type { Project } from "@/lib/types"
@@ -26,6 +27,7 @@ export async function createProject(project: Project): Promise<void> {
     icon: project.icon,
     sortOrder: count,
   })
+  await notifyChange()
 }
 
 /** Delete a project (never Inbox) and reassign its todos to Inbox. */
@@ -41,4 +43,5 @@ export async function removeProject(id: string): Promise<void> {
       .where(eq(schema.todos.projectId, id))
     await tx.delete(schema.projects).where(eq(schema.projects.id, id))
   })
+  await notifyChange()
 }

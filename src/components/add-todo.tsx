@@ -22,7 +22,8 @@ const KANBAN_STATUSES: { value: KanbanStatus; label: string }[] = [
 
 export function AddTodo() {
   const { projects, addTodo } = useTodoStore()
-  const [isOpen, setIsOpen] = useState(false)
+  const isOpen = useTodoStore((s) => s.addOpen)
+  const setIsOpen = useTodoStore((s) => s.setAddOpen)
   const [title, setTitle] = useState("")
   const [projectId, setProjectId] = useState("__inbox__")
   const [kanbanStatus, setKanbanStatus] = useState<KanbanStatus>("next")

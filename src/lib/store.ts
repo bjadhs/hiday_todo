@@ -40,6 +40,10 @@ export type TodoState = {
   planItems: PlanItem[]
   /** False until the first server hydration completes. */
   hydrated: boolean
+  /** Count of in-flight write-through persists; gates realtime re-hydration. */
+  pendingWrites: number
+  /** Transient UI: whether the add-todo form is open (driven by the header +). */
+  addOpen: boolean
 }
 
 export type TodoActions = {
@@ -54,6 +58,7 @@ export type TodoActions = {
   moveTodo: (id: string, status: KanbanStatus, overId?: string | null) => void
   setFilterMode: (mode: FilterMode) => void
   setViewMode: (mode: ViewMode) => void
+  setAddOpen: (open: boolean) => void
   addPlanItem: (data: { title: string; date: string; startMinutes: number; durationMinutes?: number; projectId?: string }) => ActionResult
   updatePlanItem: (id: string, updates: Partial<PlanItem>) => void
   removePlanItem: (id: string) => void
@@ -70,13 +75,18 @@ function ensureInbox(projects: Project[]): Project[] {
  * doesn't silently diverge.
  */
 function persist(write: Promise<unknown>) {
-  write.catch((err) => {
-    console.error("todo-store: persist failed, re-hydrating", err)
-    rehydrate()
-  })
+  useTodoStore.setState((s) => ({ pendingWrites: s.pendingWrites + 1 }))
+  write
+    .catch((err) => {
+      console.error("todo-store: persist failed, re-hydrating", err)
+      rehydrate()
+    })
+    .finally(() => {
+      useTodoStore.setState((s) => ({ pendingWrites: s.pendingWrites - 1 }))
+    })
 }
 
-async function rehydrate() {
+export async function rehydrate() {
   try {
     const data = await getAllData()
     useTodoStore.getState().hydrate(data)
@@ -95,6 +105,8 @@ export const useTodoStore = create<TodoState & TodoActions>()((set) => ({
   viewMode: "kanban",
   planItems: [],
   hydrated: false,
+  pendingWrites: 0,
+  addOpen: false,
 
   hydrate: (data) =>
     set({
@@ -178,6 +190,7 @@ export const useTodoStore = create<TodoState & TodoActions>()((set) => ({
 
   setFilterMode: (mode) => set({ filterMode: mode }),
   setViewMode: (mode) => set({ viewMode: mode }),
+  setAddOpen: (open) => set({ addOpen: open }),
 
   addPlanItem: (data) => {
     const parsed = PlanItemInputSchema.safeParse(data)

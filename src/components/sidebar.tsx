@@ -3,13 +3,11 @@
 import { useState } from "react"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
-import { Plus, Trash2, ListTodo, InboxIcon, CalendarClock, LogOut } from "lucide-react"
+import { Plus, Trash2, ListTodo, InboxIcon, CalendarClock } from "lucide-react"
 import { useTodoStore } from "@/lib/store"
-import { logout } from "@/actions/auth"
 import { firstError } from "@/lib/schemas"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ThemeToggle } from "@/components/theme-toggle"
 import { cn } from "@/lib/utils"
 
 const PROJECT_ICONS = ["👤", "💼", "💻", "📧", "📝", "🎨", "🏠", "📚", "🎯", "⭐", "🔥"]
@@ -17,11 +15,6 @@ const PROJECT_COLORS = [
   "#6D28D9", "#22C55E", "#3B82F6", "#EF4444", "#F59E0B",
   "#EC4899", "#14B8A6", "#8B5CF6", "#6366F1", "#84CC16",
 ]
-
-function pathMatches(pathname: string, target: string) {
-  if (target === "/") return pathname === "/"
-  return pathname === target || pathname.startsWith(target + "/")
-}
 
 export function Sidebar() {
   const pathname = usePathname()
@@ -46,26 +39,14 @@ export function Sidebar() {
     setIsAdding(false)
   }
 
+  const navItem = "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium transition-all hover:bg-surface"
+
   return (
     <aside className="flex h-full w-60 flex-col border-r-2 border-border-strong bg-background-elevated">
-      <div className="flex items-center justify-between border-b-2 border-border-strong px-3 py-3">
-        <Link href="/" className="flex items-center gap-2">
-          <ListTodo size={20} className="text-primary" />
-          <span className="font-bold text-sm tracking-tight gradient-text-primary">
-            Hiday Todo
-          </span>
-        </Link>
-        <ThemeToggle />
-      </div>
-
       <nav className="flex-1 overflow-y-auto p-2 space-y-0.5">
         <Link
           href="/"
-          className={cn(
-            "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium transition-all",
-            "hover:bg-surface",
-            pathname === "/" && "nav-item-active rounded-l-none"
-          )}
+          className={cn(navItem, pathname === "/" && "nav-item-active rounded-l-none")}
         >
           <ListTodo size={16} className="text-primary" />
           <span className="truncate">All</span>
@@ -73,41 +54,11 @@ export function Sidebar() {
 
         <Link
           href="/inbox"
-          className={cn(
-            "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium transition-all",
-            "hover:bg-surface",
-            pathname === "/inbox" && "nav-item-active rounded-l-none"
-          )}
+          className={cn(navItem, pathname === "/inbox" && "nav-item-active rounded-l-none")}
         >
           <InboxIcon size={16} className="text-primary" />
           <span className="truncate">Inbox</span>
         </Link>
-
-        <div className="my-2 border-t border-border" />
-
-        <div className="mb-1 px-3 text-[10px] font-bold uppercase tracking-wider text-foreground-muted">
-          Planner
-        </div>
-
-        <Link
-          href="/plan"
-          className={cn(
-            "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium transition-all",
-            "hover:bg-surface",
-            isPlan && "nav-item-active rounded-l-none"
-          )}
-        >
-          <CalendarClock size={16} className="text-accent" />
-          <span className="truncate">Plan</span>
-        </Link>
-
-        <div className="my-2 border-t border-border" />
-
-        {userProjects.length > 0 && (
-          <div className="mb-1 px-3 text-[10px] font-bold uppercase tracking-wider text-foreground-muted">
-            Projects
-          </div>
-        )}
 
         {userProjects.map((project) => {
           const href = `/${project.id}`
@@ -134,15 +85,17 @@ export function Sidebar() {
             </div>
           )
         })}
-
-        {userProjects.length === 0 && (
-          <p className="px-3 py-4 text-center text-xs text-foreground-muted/60">
-            No projects yet
-          </p>
-        )}
       </nav>
 
-      <div className="border-t-2 border-border-strong p-3">
+      <div className="border-t-2 border-border-strong p-2 space-y-2">
+        <Link
+          href="/plan"
+          className={cn(navItem, isPlan && "nav-item-active rounded-l-none")}
+        >
+          <CalendarClock size={16} className="text-accent" />
+          <span className="truncate">Plan</span>
+        </Link>
+
         {isAdding ? (
           <div>
             <div className="flex gap-1">
@@ -181,17 +134,6 @@ export function Sidebar() {
             New Project
           </Button>
         )}
-        <form action={logout} className="mt-2">
-          <Button
-            type="submit"
-            variant="ghost"
-            size="sm"
-            className="w-full h-8 justify-start text-xs text-foreground-muted"
-          >
-            <LogOut size={14} />
-            Log out
-          </Button>
-        </form>
       </div>
     </aside>
   )

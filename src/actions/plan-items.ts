@@ -2,6 +2,7 @@
 
 import { eq } from "drizzle-orm"
 import { getDb, schema } from "@/lib/db"
+import { notifyChange } from "@/lib/db/realtime"
 import { assertAuthed } from "@/lib/auth-server"
 import type { PlanItem } from "@/lib/types"
 
@@ -16,6 +17,7 @@ export async function createPlanItem(item: PlanItem): Promise<void> {
     durationMinutes: item.durationMinutes,
     projectId: item.projectId,
   })
+  await notifyChange()
 }
 
 /** Apply a partial update to a plan item. Keys map 1:1 to columns. */
@@ -23,9 +25,11 @@ export async function updatePlanItem(id: string, updates: Partial<PlanItem>): Pr
   await assertAuthed()
   if (Object.keys(updates).length === 0) return
   await getDb().update(schema.planItems).set(updates).where(eq(schema.planItems.id, id))
+  await notifyChange()
 }
 
 export async function removePlanItem(id: string): Promise<void> {
   await assertAuthed()
   await getDb().delete(schema.planItems).where(eq(schema.planItems.id, id))
+  await notifyChange()
 }

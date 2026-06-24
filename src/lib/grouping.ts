@@ -81,6 +81,27 @@ export function groupByTag(todos: Todo[]): TodoGroup[] {
   return groups
 }
 
+/**
+ * The field values a *new* todo should get so it lands in the group identified
+ * by `key` under the active filter (e.g. adding to the "Tomorrow" section sets
+ * its date). Derived from `dropUpdateForGroup` against a blank todo so the two
+ * stay consistent.
+ */
+export function newTodoAttrsForGroup(filterMode: FilterMode, key: string): Partial<Todo> {
+  const blank: Todo = {
+    id: "blank",
+    title: "blank",
+    completed: false,
+    projectId: "blank",
+    tags: [],
+    dayPeriod: null,
+    date: null,
+    kanbanStatus: "next",
+    createdAt: 0,
+  }
+  return dropUpdateForGroup(filterMode, key, blank) ?? {}
+}
+
 export function groupTodos(todos: Todo[], filterMode: FilterMode): TodoGroup[] {
   switch (filterMode) {
     case "date":

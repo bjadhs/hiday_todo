@@ -3,6 +3,7 @@
 import { useEffect } from "react"
 import { getAllData } from "@/actions/data"
 import { useTodoStore } from "@/lib/store"
+import { RealtimeSync } from "@/components/realtime-sync"
 
 /**
  * Pulls the canonical state from Postgres once on mount and loads it into the
@@ -33,5 +34,10 @@ export function StoreHydrator({ children }: { children: React.ReactNode }) {
     )
   }
 
-  return <>{children}</>
+  return (
+    <>
+      <RealtimeSync />
+      {children}
+    </>
+  )
 }

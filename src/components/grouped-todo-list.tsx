@@ -19,9 +19,11 @@ import {
   rectSortingStrategy,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
+import { Plus } from "lucide-react"
 import { useTodoStore } from "@/lib/store"
 import { TodoItem } from "@/components/todo-item"
-import { dropUpdateForGroup, type TodoGroup } from "@/lib/grouping"
+import { InlineAddTodo } from "@/components/inline-add-todo"
+import { dropUpdateForGroup, newTodoAttrsForGroup, type TodoGroup } from "@/lib/grouping"
 import { cn } from "@/lib/utils"
 import type { FilterMode, ViewMode } from "@/lib/types"
 
@@ -37,9 +39,11 @@ type GroupedTodoListProps = {
   filterMode: FilterMode
   viewMode: ViewMode
   gridClass: string
+  /** Project id new todos added from an empty section are assigned to. */
+  projectId: string
 }
 
-export function GroupedTodoList({ groups, filterMode, viewMode, gridClass }: GroupedTodoListProps) {
+export function GroupedTodoList({ groups, filterMode, viewMode, gridClass, projectId }: GroupedTodoListProps) {
   const todos = useTodoStore((s) => s.todos)
   const updateTodo = useTodoStore((s) => s.updateTodo)
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -101,7 +105,14 @@ export function GroupedTodoList({ groups, filterMode, viewMode, gridClass }: Gro
       onDragCancel={() => setActiveId(null)}
     >
       {groups.map((group) => (
-        <Section key={group.key} group={group} gridClass={gridClass} strategy={strategy} />
+        <Section
+          key={group.key}
+          group={group}
+          gridClass={gridClass}
+          strategy={strategy}
+          filterMode={filterMode}
+          projectId={projectId}
+        />
       ))}
 
       <DragOverlay>
@@ -115,12 +126,18 @@ function Section({
   group,
   gridClass,
   strategy,
+  filterMode,
+  projectId,
 }: {
   group: TodoGroup
   gridClass: string
   strategy: typeof verticalListSortingStrategy
+  filterMode: FilterMode
+  projectId: string
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: group.key, data: { type: "section" } })
+  const addTodo = useTodoStore((s) => s.addTodo)
+  const [adding, setAdding] = useState(false)
 
   return (
     <section
@@ -142,10 +159,22 @@ function Section({
               <TodoItem key={todo.id} todo={todo} sortableId={itemId(group.key, todo.id)} />
             ))}
           </div>
+        ) : adding ? (
+          <InlineAddTodo
+            onAdd={(title) =>
+              addTodo({ title, projectId, ...newTodoAttrsForGroup(filterMode, group.key) })
+            }
+            onClose={() => setAdding(false)}
+          />
         ) : (
-          <div className="rounded-xl border-2 border-dashed border-border py-6 text-center text-xs text-foreground-muted/70">
-            Drop here
-          </div>
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className="flex w-full items-center justify-center rounded-xl border-2 border-dashed border-border py-6 text-foreground-muted/50 transition-colors hover:border-primary hover:text-primary"
+            title={`Add to ${group.label}`}
+          >
+            <Plus size={20} />
+          </button>
         )}
       </SortableContext>
     </section>

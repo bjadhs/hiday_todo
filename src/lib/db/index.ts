@@ -23,10 +23,11 @@ export function getDb() {
   const sql = globalForDb.__sql ?? postgres(url, { max: 10 })
   const db = drizzle(sql, { schema })
 
-  if (process.env.NODE_ENV !== "production") {
-    globalForDb.__sql = sql
-    globalForDb.__db = db
-  }
+  // Cache in every environment: in standalone production the module scope
+  // persists across requests, so without caching each call would open a new
+  // pool and leak connections.
+  globalForDb.__sql = sql
+  globalForDb.__db = db
   return db
 }
 

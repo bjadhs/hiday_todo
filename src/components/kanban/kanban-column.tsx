@@ -3,10 +3,9 @@
 import { useState } from "react"
 import { useDroppable } from "@dnd-kit/core"
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
-import { Plus, X } from "lucide-react"
+import { Plus } from "lucide-react"
 import { useTodoStore } from "@/lib/store"
-import { firstError } from "@/lib/schemas"
-import { Input } from "@/components/ui/input"
+import { InlineAddTodo } from "@/components/inline-add-todo"
 import { KanbanCard } from "./kanban-card"
 import { cn } from "@/lib/utils"
 import type { KanbanStatus, Todo } from "@/lib/types"
@@ -24,26 +23,6 @@ export function KanbanColumn({ id, title, colorVar, todos, projectId }: KanbanCo
   const addTodo = useTodoStore((s) => s.addTodo)
   const { setNodeRef, isOver } = useDroppable({ id })
   const [adding, setAdding] = useState(false)
-  const [title2, setTitle2] = useState("")
-  const [error, setError] = useState<string | null>(null)
-
-  function commitAdd() {
-    // Blurring an empty quick-add is a silent cancel, not an error.
-    if (!title2.trim()) {
-      setTitle2("")
-      setAdding(false)
-      setError(null)
-      return
-    }
-    const result = addTodo({ title: title2, projectId, kanbanStatus: id })
-    if (!result.ok) {
-      setError(firstError(result, "title"))
-      return
-    }
-    setTitle2("")
-    setAdding(false)
-    setError(null)
-  }
 
   return (
     <div
@@ -74,42 +53,10 @@ export function KanbanColumn({ id, title, colorVar, todos, projectId }: KanbanCo
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
         {adding && (
-          <div className="rounded-xl border-2 border-primary bg-background-elevated p-2 shadow-brutal-xs">
-            <div className="flex items-center gap-1.5">
-              <Input
-                autoFocus
-                value={title2}
-                onChange={(e) => {
-                  setTitle2(e.target.value)
-                  if (error) setError(null)
-                }}
-                onBlur={commitAdd}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") commitAdd()
-                  if (e.key === "Escape") {
-                    setTitle2("")
-                    setAdding(false)
-                    setError(null)
-                  }
-                }}
-                placeholder="New todo..."
-                aria-invalid={error ? true : undefined}
-                className="h-7 text-sm"
-              />
-              <button
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  setTitle2("")
-                  setAdding(false)
-                  setError(null)
-                }}
-                className="shrink-0 rounded p-1 text-foreground-muted hover:text-foreground"
-              >
-                <X size={14} />
-              </button>
-            </div>
-            {error && <p className="mt-1 px-0.5 text-xs font-semibold text-danger">{error}</p>}
-          </div>
+          <InlineAddTodo
+            onAdd={(title) => addTodo({ title, projectId, kanbanStatus: id })}
+            onClose={() => setAdding(false)}
+          />
         )}
 
         <SortableContext items={todos.map((t) => t.id)} strategy={verticalListSortingStrategy}>
@@ -119,9 +66,14 @@ export function KanbanColumn({ id, title, colorVar, todos, projectId }: KanbanCo
         </SortableContext>
 
         {todos.length === 0 && !adding && (
-          <div className="rounded-xl border-2 border-dashed border-border py-8 text-center text-sm text-foreground-muted">
-            Drop here
-          </div>
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className="flex w-full items-center justify-center rounded-xl border-2 border-dashed border-border py-8 text-foreground-muted/50 transition-colors hover:border-primary hover:text-primary"
+            title={`Add to ${title}`}
+          >
+            <Plus size={24} />
+          </button>
         )}
       </div>
     </div>
