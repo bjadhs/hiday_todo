@@ -10,7 +10,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "5435:5432"
+      # Tailscale-only: reachable from your Mac over the tailnet, not the public internet.
+      - "100.78.187.64:5435:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -28,10 +29,34 @@ services:
       APP_PASSWORD: ${APP_PASSWORD}
       AUTH_SECRET: ${AUTH_SECRET}
     ports:
-      - "8085:3000"
+      # Tailscale-only: reachable from your Mac over the tailnet, not the public internet.
+      - "100.78.187.64:8085:3000"
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - default          # reach the db service
+      - dokploy-network  # reachable by the host's Traefik for public HTTPS
+    labels:
+      # --- Public HTTPS via the host's existing Traefik (todo.bijbrin.cloud) ---
+      - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
+      - "traefik.http.services.hidaytodo.loadbalancer.server.port=3000"
+      # HTTPS router (Let's Encrypt via the shared `letsencrypt` resolver)
+      - "traefik.http.routers.hidaytodo.rule=Host(`todo.bijbrin.cloud`)"
+      - "traefik.http.routers.hidaytodo.entrypoints=websecure"
+      - "traefik.http.routers.hidaytodo.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.hidaytodo.service=hidaytodo"
+      # HTTP router -> redirect to HTTPS
+      - "traefik.http.routers.hidaytodo-web.rule=Host(`todo.bijbrin.cloud`)"
+      - "traefik.http.routers.hidaytodo-web.entrypoints=web"
+      - "traefik.http.routers.hidaytodo-web.middlewares=hidaytodo-redirect"
+      - "traefik.http.middlewares.hidaytodo-redirect.redirectscheme.scheme=https"
 
 volumes:
   pgdata:
+
+networks:
+  # Created/managed by Dokploy's Traefik; we attach the app to it for routing.
+  dokploy-network:
+    external: true
