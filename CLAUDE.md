@@ -28,6 +28,24 @@ npm run db:seed      # Insert default projects if the table is empty
 
 **Env vars** (see `.env.example`; put them in `.env.local` for dev): `DATABASE_URL` (Postgres), `APP_PASSWORD` (the shared gate password), `AUTH_SECRET` (signs the session cookie).
 
+## Deployment (self-hosted via `docker compose`)
+
+The app self-hosts as a bundled `app` + `db` stack (`docker-compose.yml`):
+
+```bash
+docker compose up -d --build   # build image, start db+app; entrypoint migrates + seeds
+```
+
+- **`.env`** (next to `docker-compose.yml`, gitignored — see `.env.docker.example`) supplies `POSTGRES_USER/PASSWORD/DB`, `APP_PASSWORD`, `AUTH_SECRET`.
+- **Public HTTPS** is via an external Traefik on `dokploy-network`: the `app` service carries `traefik.*` labels routing `todo.bijbrin.cloud` → port 3000 with a Let's Encrypt cert (HTTP→HTTPS redirect). Host ports are bound to the Tailscale IP only, so direct `:8085`/`:5435` access is private.
+- **Reverse-proxy gotcha:** behind a proxy on a custom domain, Next.js rejects Server Actions (login/add/edit) with a **403** unless the forwarded host is allowlisted — see `serverActions.allowedOrigins` in `next.config.ts`. Add any new domain there (a rebuild is required; it's baked at build time).
+
+### Building the image — two prerequisites
+
+The `Dockerfile` build (`npm ci`, strict) fails unless:
+1. **`package-lock.json` is in sync with `package.json`.** After changing deps, regenerate the lockfile against the build base image: `docker run --rm -v "$PWD":/app -w /app node:20-alpine npm install --package-lock-only`.
+2. **A `public/` directory exists** — the `Dockerfile` does `COPY .../public ./public`. Keep `public/.gitkeep` committed even if there are no static assets.
+
 ## Tech Stack
 
 - **Framework:** Next.js 16 (App Router, Turbopack)
@@ -35,7 +53,7 @@ npm run db:seed      # Insert default projects if the table is empty
 - **State:** Zustand — the in-memory source of truth, hydrated from and written through to Postgres (no `persist`/localStorage, no React Query).
 - **Database:** self-hosted Postgres via **Drizzle ORM** (driver: `postgres`/postgres.js). Tables in `src/lib/db/schema.ts`; migrations in `drizzle/`.
 - **Auth:** single shared-password gate. Session is a signed httpOnly cookie; routes guarded by `src/proxy.ts`, server actions guarded by `assertAuthed()`.
-- **Deploy:** Docker (`Dockerfile`, standalone output) via Dokploy. `docker-entrypoint.sh` runs `scripts/migrate.mjs` + `scripts/seed.mjs` before starting the server.
+- **Deploy:** `docker compose` (`docker-compose.yml`) on a self-hosted box — bundled `app` (standalone `Dockerfile`) + `db` (Postgres), fronted by Traefik for public HTTPS. `docker-entrypoint.sh` runs `scripts/migrate.mjs` + `scripts/seed.mjs` before starting the server. See **Deployment** below. (Originally Dokploy; moved to plain compose.)
 - **Theming:** `next-themes` (class-based dark mode, `defaultTheme="system"`)
 - **Icons:** `lucide-react`
 - **Drag & drop:** `@dnd-kit/core` + `@dnd-kit/sortable` + `@dnd-kit/utilities` (kanban board)
