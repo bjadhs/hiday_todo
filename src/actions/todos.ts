@@ -24,6 +24,7 @@ export async function createTodo(todo: Todo): Promise<void> {
     date: todo.date,
     kanbanStatus: todo.kanbanStatus,
     createdAt: todo.createdAt,
+    focusSeconds: todo.focusSeconds,
     position: count,
   })
   await notifyChange()

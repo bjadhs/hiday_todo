@@ -1,6 +1,8 @@
 import { Sidebar } from "@/components/sidebar"
 import { Header } from "@/components/header"
 import { StoreHydrator } from "@/components/store-hydrator"
+import { PomodoroWidget } from "@/components/pomodoro/pomodoro-widget"
+import { PomodoroNotifier } from "@/components/pomodoro/pomodoro-notifier"
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -12,6 +14,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <main className="flex-1 overflow-hidden">{children}</main>
         </div>
       </div>
+      <PomodoroWidget />
+      <PomodoroNotifier />
     </StoreHydrator>
   )
 }

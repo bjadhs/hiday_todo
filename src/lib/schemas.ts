@@ -47,6 +47,9 @@ export const TodoSchema = z.object({
   date: DateStringSchema.nullable(),
   kanbanStatus: KanbanStatusSchema,
   createdAt: z.number().int().nonnegative(),
+  // Accumulated pomodoro/timer focus time, in seconds. Defaults to 0 so todos
+  // persisted before this field existed still parse on rehydration.
+  focusSeconds: z.number().int().nonnegative().default(0),
 })
 
 export const PlanItemSchema = z.object({
@@ -58,6 +61,18 @@ export const PlanItemSchema = z.object({
   projectId: z.string().min(1),
 })
 
+// A recorded focus run. `startedAt`/`endedAt` are Unix ms; `durationSeconds` is
+// the focus time earned (excludes breaks). The plan timeline derives its date +
+// slot from `startedAt`.
+export const FocusSessionSchema = z.object({
+  id: z.string().min(1),
+  todoId: z.string().min(1),
+  projectId: z.string().min(1),
+  startedAt: z.number().int().nonnegative(),
+  endedAt: z.number().int().nonnegative(),
+  durationSeconds: z.number().int().nonnegative(),
+})
+
 // --- Inferred types (consumed by types.ts) ------------------------------
 
 export type DayPeriod = z.infer<typeof DayPeriodSchema>
@@ -67,6 +82,7 @@ export type ViewMode = z.infer<typeof ViewModeSchema>
 export type Project = z.infer<typeof ProjectSchema>
 export type Todo = z.infer<typeof TodoSchema>
 export type PlanItem = z.infer<typeof PlanItemSchema>
+export type FocusSession = z.infer<typeof FocusSessionSchema>
 
 // --- Input schemas (store add-actions) ----------------------------------
 // Trim/normalize user-facing strings and apply defaults so the store actions
@@ -134,6 +150,9 @@ export const PersistedStateSchema = z.object({
   ),
   planItems: z.array(okOr(PlanItemSchema.nullable(), null)).catch([]).transform(
     (items) => items.filter((p): p is PlanItem => p !== null)
+  ),
+  sessions: z.array(okOr(FocusSessionSchema.nullable(), null)).catch([]).transform(
+    (items) => items.filter((s): s is FocusSession => s !== null)
   ),
   selectedProjectId: okOr(z.string().min(1), INBOX_ID),
   filterMode: okOr(FilterModeSchema, "date"),

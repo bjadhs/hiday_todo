@@ -34,6 +34,9 @@ export const todos = pgTable("todos", {
   date: text("date"),
   kanbanStatus: text("kanban_status").notNull().default("next"),
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
+  // Accumulated focus time (seconds) logged against this todo by the pomodoro
+  // timer. Flushed on phase completion / stop — not on every tick.
+  focusSeconds: integer("focus_seconds").notNull().default(0),
   // Global array position; hydration orders todos by this so kanban drag order
   // survives reloads.
   position: integer("position").notNull().default(0),
@@ -46,4 +49,19 @@ export const planItems = pgTable("plan_items", {
   startMinutes: integer("start_minutes").notNull(),
   durationMinutes: integer("duration_minutes").notNull(),
   projectId: text("project_id").notNull(),
+})
+
+/**
+ * A single recorded focus run from the pomodoro/timer widget. `started_at` /
+ * `ended_at` are Unix ms (wall-clock start/stop); `duration_seconds` is the
+ * focus time earned (excludes breaks). The plan timeline derives its date + slot
+ * from `started_at`.
+ */
+export const sessions = pgTable("sessions", {
+  id: text("id").primaryKey(),
+  todoId: text("todo_id").notNull(),
+  projectId: text("project_id").notNull(),
+  startedAt: bigint("started_at", { mode: "number" }).notNull(),
+  endedAt: bigint("ended_at", { mode: "number" }).notNull(),
+  durationSeconds: integer("duration_seconds").notNull(),
 })

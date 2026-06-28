@@ -221,6 +221,18 @@ html, body {
   border-left: 3px solid var(--primary);
 }
 
+/* Single source of truth for item title sizing — todos, kanban cards, plan
+   blocks, and focus sessions render their title as an <h3>. Tweak
+   --item-title-size to rescale every title at once. Weight/colour stay
+   per-component; utility classes like `text-sm` still override this. */
+:root {
+  --item-title-size: 0.6rem;
+}
+h3 {
+  font-size: var(--item-title-size);
+  line-height: 1.2;
+}
+
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: var(--surface); }
 ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }

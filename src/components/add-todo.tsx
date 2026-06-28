@@ -112,23 +112,20 @@ export function AddTodo() {
       <div className="mb-3">
         <label className="mb-1 block text-xs font-semibold text-foreground-muted">Project</label>
         <div className="flex flex-wrap gap-1.5">
-          {projectOptions.map((p) => {
-            const isInbox = p.id === "__inbox__"
-            return (
-              <button
-                key={p.id}
-                onClick={() => setProjectId(p.id)}
-                className={`flex items-center gap-1 rounded-md border-2 px-2.5 py-1 text-xs font-bold transition-all ${
-                  projectId === p.id
-                    ? "border-primary bg-primary text-primary-foreground shadow-brutal-xs"
-                    : "border-border-strong bg-surface hover:border-foreground-muted"
-                }`}
-              >
-                <span className="text-sm leading-none">{p.icon}</span>
-                {p.name}
-              </button>
-            )
-          })}
+          {projectOptions.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => setProjectId(p.id)}
+              className={`flex items-center gap-1 rounded-md border-2 px-2.5 py-1 text-xs font-bold transition-all ${
+                projectId === p.id
+                  ? "border-primary bg-primary text-primary-foreground shadow-brutal-xs"
+                  : "border-border-strong bg-surface hover:border-foreground-muted"
+              }`}
+            >
+              <span className="text-sm leading-none">{p.icon}</span>
+              {p.name}
+            </button>
+          ))}
         </div>
       </div>
 

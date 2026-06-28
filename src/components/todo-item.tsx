@@ -3,25 +3,14 @@
 import { useState } from "react"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { Check, Trash2, GripVertical, Pencil } from "lucide-react"
+import { Check, Trash2, GripVertical, Pencil, Timer } from "lucide-react"
 import { useTodoStore } from "@/lib/store"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { TodoPomodoroControls } from "@/components/pomodoro/todo-pomodoro-controls"
+import { TodoEditForm } from "@/components/todo-edit-form"
 import type { Todo, DayPeriod, KanbanStatus } from "@/lib/types"
-import { cn, formatDate } from "@/lib/utils"
-
-const DAY_PERIODS: { value: DayPeriod; label: string }[] = [
-  { value: "morning", label: "☀️ Morning" },
-  { value: "day", label: "🌤️ Day" },
-  { value: "evening", label: "🌙 Evening" },
-]
-
-const KANBAN_STATUSES: { value: KanbanStatus; label: string }[] = [
-  { value: "next", label: "Next" },
-  { value: "doing", label: "Doing" },
-  { value: "done", label: "Done" },
-]
+import { cn, formatDate, formatFocusTotal } from "@/lib/utils"
 
 const KANBAN_COLORS: Record<KanbanStatus, { dot: string; bg: string }> = {
   next: { dot: "bg-info", bg: "bg-info-bg border-info-border" },
@@ -46,16 +35,9 @@ type TodoItemProps = {
 
 export function TodoItem({ todo, sortableId, isOverlay }: TodoItemProps) {
   const { updateTodo, removeTodo, toggleTodo } = useTodoStore()
-  const projects = useTodoStore((s) => s.projects)
   const [isEditing, setIsEditing] = useState(false)
   const [editTitle, setEditTitle] = useState(todo.title)
   const [isEditFormOpen, setIsEditFormOpen] = useState(false)
-  const [formTitle, setFormTitle] = useState(todo.title)
-  const [formProjectId, setFormProjectId] = useState(todo.projectId)
-  const [formKanbanStatus, setFormKanbanStatus] = useState<KanbanStatus>(todo.kanbanStatus)
-  const [formDayPeriod, setFormDayPeriod] = useState<DayPeriod | null>(todo.dayPeriod)
-  const [formDate, setFormDate] = useState(todo.date ?? "")
-  const [formTagInput, setFormTagInput] = useState(todo.tags.join(", "))
 
   const {
     attributes,
@@ -82,138 +64,10 @@ export function TodoItem({ todo, sortableId, isOverlay }: TodoItemProps) {
     setIsEditing(false)
   }
 
-  function openEditForm() {
-    setFormTitle(todo.title)
-    setFormProjectId(todo.projectId)
-    setFormKanbanStatus(todo.kanbanStatus)
-    setFormDayPeriod(todo.dayPeriod)
-    setFormDate(todo.date ?? "")
-    setFormTagInput(todo.tags.join(", "))
-    setIsEditFormOpen(true)
-  }
-
-  function handleEditFormSave() {
-    if (!formTitle.trim()) return
-    const tags = formTagInput.split(",").map((t) => t.trim()).filter(Boolean)
-    updateTodo(todo.id, {
-      title: formTitle.trim(),
-      projectId: formProjectId,
-      kanbanStatus: formKanbanStatus,
-      dayPeriod: formDayPeriod,
-      date: formDate || null,
-      tags,
-    })
-    setIsEditFormOpen(false)
-  }
-
-  function handleEditFormCancel() {
-    setIsEditFormOpen(false)
-  }
-
-  const projectOptions = projects.filter((p) => p.id !== "__all__")
-
   const kanbanStyle = KANBAN_COLORS[todo.kanbanStatus]
 
   if (isEditFormOpen) {
-    return (
-      <div className="rounded-xl border-2 border-border-strong bg-background-elevated p-4 shadow-brutal-sm animate-fade-in">
-        <Input
-          autoFocus
-          value={formTitle}
-          onChange={(e) => setFormTitle(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") handleEditFormSave()
-            if (e.key === "Escape") handleEditFormCancel()
-          }}
-          placeholder="What needs to be done?"
-          className="mb-3"
-        />
-
-        <div className="mb-3 flex flex-wrap gap-2">
-          <span className="text-xs font-semibold text-foreground-muted self-center">Status:</span>
-          {KANBAN_STATUSES.map((s) => (
-            <button
-              key={s.value}
-              onClick={() => setFormKanbanStatus(s.value)}
-              className={`rounded-md border-2 px-2.5 py-1 text-xs font-bold transition-all ${
-                formKanbanStatus === s.value
-                  ? "border-primary bg-primary text-primary-foreground shadow-brutal-xs"
-                  : "border-border-strong bg-surface hover:border-foreground-muted"
-              }`}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="mb-3">
-          <label className="mb-1 block text-xs font-semibold text-foreground-muted">Project</label>
-          <div className="flex flex-wrap gap-1.5">
-            {projectOptions.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => setFormProjectId(p.id)}
-                className={`flex items-center gap-1 rounded-md border-2 px-2.5 py-1 text-xs font-bold transition-all ${
-                  formProjectId === p.id
-                    ? "border-primary bg-primary text-primary-foreground shadow-brutal-xs"
-                    : "border-border-strong bg-surface hover:border-foreground-muted"
-                }`}
-              >
-                <span className="text-sm leading-none">{p.icon}</span>
-                {p.name}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="mb-3 flex flex-wrap gap-2">
-          <span className="text-xs font-semibold text-foreground-muted self-center">Day:</span>
-          {DAY_PERIODS.map((d) => (
-            <button
-              key={d.value}
-              onClick={() => setFormDayPeriod(d.value === formDayPeriod ? null : d.value)}
-              className={`rounded-md border-2 px-2.5 py-1 text-xs font-bold transition-all ${
-                formDayPeriod === d.value
-                  ? "border-accent bg-accent text-accent-foreground shadow-brutal-xs"
-                  : "border-border-strong bg-surface hover:border-foreground-muted"
-              }`}
-            >
-              {d.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="mb-3 flex gap-2">
-          <div className="flex-1">
-            <label className="mb-1 block text-xs font-semibold text-foreground-muted">Date</label>
-            <Input
-              type="date"
-              value={formDate}
-              onChange={(e) => setFormDate(e.target.value)}
-              className="h-8 text-xs"
-            />
-          </div>
-          <div className="flex-1">
-            <label className="mb-1 block text-xs font-semibold text-foreground-muted">Tags (comma-separated)</label>
-            <Input
-              value={formTagInput}
-              onChange={(e) => setFormTagInput(e.target.value)}
-              placeholder="e.g. urgent, design"
-              className="h-8 text-xs"
-            />
-          </div>
-        </div>
-
-        <div className="flex gap-2">
-          <Button size="sm" onClick={handleEditFormSave} className="flex-1">
-            Save
-          </Button>
-          <Button variant="ghost" size="sm" onClick={handleEditFormCancel}>
-            Cancel
-          </Button>
-        </div>
-      </div>
-    )
+    return <TodoEditForm todo={todo} onClose={() => setIsEditFormOpen(false)} />
   }
 
   return (
@@ -256,18 +110,18 @@ export function TodoItem({ todo, sortableId, isOverlay }: TodoItemProps) {
             className="h-7 text-sm"
           />
         ) : (
-          <span
+          <h3
             onClick={() => {
               setEditTitle(todo.title)
               setIsEditing(true)
             }}
             className={cn(
-              "block cursor-pointer text-sm font-medium",
+              "block cursor-pointer font-medium",
               todo.completed && "line-through text-foreground-muted"
             )}
           >
             {todo.title}
-          </span>
+          </h3>
         )}
 
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -298,12 +152,20 @@ export function TodoItem({ todo, sortableId, isOverlay }: TodoItemProps) {
               {tag}
             </Badge>
           ))}
+
+          {todo.focusSeconds > 0 && (
+            <span className="inline-flex items-center gap-1 rounded-md border border-primary bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+              <Timer size={10} />
+              {formatFocusTotal(todo.focusSeconds)}
+            </span>
+          )}
         </div>
       </div>
 
       <div className="flex shrink-0 items-center gap-0.5">
+        <TodoPomodoroControls todo={todo} hoverReveal />
         <button
-          onClick={openEditForm}
+          onClick={() => setIsEditFormOpen(true)}
           className="flex h-6 w-6 items-center justify-center rounded opacity-0 transition-opacity hover:bg-surface group-hover:opacity-100"
           title="Edit"
           aria-label="Edit"

@@ -3,7 +3,7 @@
 import { asc } from "drizzle-orm"
 import { getDb, schema } from "@/lib/db"
 import { assertAuthed } from "@/lib/auth-server"
-import type { Project, Todo, PlanItem, DayPeriod, KanbanStatus } from "@/lib/types"
+import type { Project, Todo, PlanItem, FocusSession, DayPeriod, KanbanStatus } from "@/lib/types"
 
 /**
  * Single hydration read for the whole app. Returns every row ordered the way the
@@ -14,14 +14,16 @@ export async function getAllData(): Promise<{
   projects: Project[]
   todos: Todo[]
   planItems: PlanItem[]
+  sessions: FocusSession[]
 }> {
   await assertAuthed()
   const db = getDb()
 
-  const [projectRows, todoRows, planRows] = await Promise.all([
+  const [projectRows, todoRows, planRows, sessionRows] = await Promise.all([
     db.select().from(schema.projects).orderBy(asc(schema.projects.sortOrder)),
     db.select().from(schema.todos).orderBy(asc(schema.todos.position)),
     db.select().from(schema.planItems),
+    db.select().from(schema.sessions).orderBy(asc(schema.sessions.startedAt)),
   ])
 
   const projects: Project[] = projectRows.map((p) => ({
@@ -41,6 +43,7 @@ export async function getAllData(): Promise<{
     date: t.date,
     kanbanStatus: t.kanbanStatus as KanbanStatus,
     createdAt: t.createdAt,
+    focusSeconds: t.focusSeconds,
   }))
 
   const planItems: PlanItem[] = planRows.map((p) => ({
@@ -52,5 +55,14 @@ export async function getAllData(): Promise<{
     projectId: p.projectId,
   }))
 
-  return { projects, todos, planItems }
+  const sessions: FocusSession[] = sessionRows.map((s) => ({
+    id: s.id,
+    todoId: s.todoId,
+    projectId: s.projectId,
+    startedAt: s.startedAt,
+    endedAt: s.endedAt,
+    durationSeconds: s.durationSeconds,
+  }))
+
+  return { projects, todos, planItems, sessions }
 }

@@ -9,4 +9,5 @@ export type {
   Project,
   Todo,
   PlanItem,
+  FocusSession,
 } from "./schemas"

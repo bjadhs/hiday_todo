@@ -98,6 +98,7 @@ export function newTodoAttrsForGroup(filterMode: FilterMode, key: string): Parti
     date: null,
     kanbanStatus: "next",
     createdAt: 0,
+    focusSeconds: 0,
   }
   return dropUpdateForGroup(filterMode, key, blank) ?? {}
 }
