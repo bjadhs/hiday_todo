@@ -113,7 +113,7 @@ export function KanbanCard({ todo, isOverlay }: KanbanCardProps) {
           <TodoPomodoroControls todo={todo} hoverReveal />
           <button
             onClick={() => setIsEditFormOpen(true)}
-            className="flex h-6 w-6 items-center justify-center rounded opacity-0 transition-opacity hover:bg-surface group-hover:opacity-100"
+            className="flex h-7 w-7 items-center justify-center rounded transition-opacity hover:bg-surface lg:h-6 lg:w-6 lg:opacity-0 lg:group-hover:opacity-100"
             title="Edit"
             aria-label="Edit"
           >
@@ -121,8 +121,9 @@ export function KanbanCard({ todo, isOverlay }: KanbanCardProps) {
           </button>
           <button
             onClick={() => removeTodo(todo.id)}
-            className="flex h-6 w-6 items-center justify-center rounded opacity-0 transition-opacity hover:bg-surface group-hover:opacity-100"
+            className="flex h-7 w-7 items-center justify-center rounded transition-opacity hover:bg-surface lg:h-6 lg:w-6 lg:opacity-0 lg:group-hover:opacity-100"
             title="Delete"
+            aria-label="Delete"
           >
             <Trash2 size={12} className="text-foreground-muted hover:text-destructive" />
           </button>

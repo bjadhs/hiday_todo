@@ -55,8 +55,8 @@ export function TodoPomodoroControls({ todo, hoverReveal }: TodoPomodoroControls
       <button
         onClick={() => setShowSetup(true)}
         className={cn(
-          "flex h-6 w-6 items-center justify-center rounded transition-opacity hover:bg-surface",
-          hoverReveal && "opacity-0 group-hover:opacity-100"
+          "flex h-7 w-7 items-center justify-center rounded transition-opacity hover:bg-surface lg:h-6 lg:w-6",
+          hoverReveal && "lg:opacity-0 lg:group-hover:opacity-100"
         )}
         title="Start focus session"
         aria-label="Start focus session"

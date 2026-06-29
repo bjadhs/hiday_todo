@@ -64,13 +64,13 @@ export function TodoList({ projectId: rawProjectId }: { projectId?: string }) {
     ? projectTodos.length
     : groups.reduce((sum, g) => sum + g.todos.length, 0)
   const newTodoProjectId = isAll ? "__inbox__" : selectedProjectId
-  const gridClass = viewMode === "grid-2" ? "grid grid-cols-2 gap-2" : viewMode === "grid-3" ? "grid grid-cols-3 gap-2" : "space-y-2"
+  const gridClass = viewMode === "grid-2" ? "grid grid-cols-1 sm:grid-cols-2 gap-2" : viewMode === "grid-3" ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2" : "space-y-2"
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b-2 border-border-strong bg-surface px-6 py-2">
-        <div className="flex items-center gap-3">
-          <span className="rounded-md border border-border-strong bg-background-elevated px-2 py-0.5 text-xs font-bold text-foreground-muted">
+      <div className="flex items-center justify-between gap-2 border-b-2 border-border-strong bg-surface px-3 py-2 sm:px-6">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          <span className="shrink-0 rounded-md border border-border-strong bg-background-elevated px-2 py-0.5 text-xs font-bold text-foreground-muted">
             {totalTodos}
           </span>
           <div className="flex gap-1">
@@ -81,20 +81,21 @@ export function TodoList({ projectId: rawProjectId }: { projectId?: string }) {
               <button
                 key={tab.mode}
                 onClick={() => setFilterMode(tab.mode)}
+                title={tab.label}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-bold transition-all",
+                  "flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-bold transition-all sm:px-3",
                   filterMode === tab.mode
                     ? "bg-primary text-primary-foreground shadow-brutal-xs"
                     : "text-foreground-muted hover:bg-background-elevated hover:text-foreground"
                 )}
               >
                 {tab.icon}
-                {tab.label}
+                <span className="hidden sm:inline">{tab.label}</span>
               </button>
             ))}
           </div>
         </div>
-        <div className="flex gap-0.5">
+        <div className="flex shrink-0 gap-0.5">
           {VIEW_TABS.map((tab) => (
             <button
               key={tab.mode}
@@ -108,14 +109,14 @@ export function TodoList({ projectId: rawProjectId }: { projectId?: string }) {
               title={tab.title}
             >
               {tab.icon}
-              {tab.mode === "kanban" && <span>{tab.label}</span>}
+              {tab.mode === "kanban" && <span className="hidden sm:inline">{tab.label}</span>}
             </button>
           ))}
         </div>
       </div>
 
       {isKanban ? (
-        <div className="flex min-h-0 flex-1 flex-col gap-4 p-6">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 p-3 sm:gap-4 sm:p-6">
           {addOpen && (
             <div className="mx-auto w-full max-w-2xl">
               <AddTodo />
@@ -126,7 +127,7 @@ export function TodoList({ projectId: rawProjectId }: { projectId?: string }) {
           </div>
         </div>
       ) : (
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-6">
         <div className={cn("mx-auto space-y-4", viewMode === "list" ? "max-w-2xl" : "max-w-5xl")}>
           <AddTodo />
 

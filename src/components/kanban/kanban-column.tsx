@@ -17,9 +17,11 @@ type KanbanColumnProps = {
   todos: Todo[]
   /** Project id new cards in this column are assigned to. */
   projectId: string
+  /** Extra classes for responsive sizing (mobile carousel vs. desktop grid). */
+  className?: string
 }
 
-export function KanbanColumn({ id, title, colorVar, todos, projectId }: KanbanColumnProps) {
+export function KanbanColumn({ id, title, colorVar, todos, projectId, className }: KanbanColumnProps) {
   const addTodo = useTodoStore((s) => s.addTodo)
   const { setNodeRef, isOver } = useDroppable({ id })
   const [adding, setAdding] = useState(false)
@@ -29,7 +31,8 @@ export function KanbanColumn({ id, title, colorVar, todos, projectId }: KanbanCo
       ref={setNodeRef}
       className={cn(
         "flex h-full max-h-full min-h-0 flex-col rounded-2xl border-2 border-border-strong bg-surface/50 shadow-brutal-sm transition-colors",
-        isOver && "border-primary/50 bg-primary/5"
+        isOver && "border-primary/50 bg-primary/5",
+        className
       )}
     >
       <div

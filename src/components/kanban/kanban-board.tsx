@@ -96,7 +96,9 @@ export function KanbanBoard({ todos, projectId }: KanbanBoardProps) {
       onDragEnd={handleDragEnd}
       onDragCancel={() => setActiveId(null)}
     >
-      <div className="grid h-full grid-cols-3 gap-4">
+      {/* Mobile: horizontal scroll-snap carousel (one column per swipe, with a
+          peek of the next). Desktop (lg+): all three columns side by side. */}
+      <div className="flex h-full snap-x snap-mandatory gap-3 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:grid-cols-3 lg:gap-4 lg:overflow-x-visible lg:pb-0">
         {COLUMNS.map((col) => (
           <KanbanColumn
             key={col.id}
@@ -105,6 +107,7 @@ export function KanbanBoard({ todos, projectId }: KanbanBoardProps) {
             colorVar={col.colorVar}
             todos={todosByStatus[col.id]}
             projectId={projectId}
+            className="w-[82vw] shrink-0 snap-center sm:w-[60vw] md:w-[45vw] lg:w-auto lg:shrink"
           />
         ))}
       </div>

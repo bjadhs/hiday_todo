@@ -20,7 +20,11 @@ export function getDb() {
   const url = process.env.DATABASE_URL
   if (!url) throw new Error("DATABASE_URL is not set")
 
-  const sql = globalForDb.__sql ?? postgres(url, { max: 10 })
+  // `connect_timeout` (seconds) bounds how long we wait to reach the DB. The
+  // database is only reachable over Tailscale, so when the tunnel is down this
+  // makes the failure surface quickly (and lets the DatabaseGate show the
+  // connect screen) instead of hanging on a TCP timeout.
+  const sql = globalForDb.__sql ?? postgres(url, { max: 10, connect_timeout: 8 })
   const db = drizzle(sql, { schema })
 
   // Cache in every environment: in standalone production the module scope

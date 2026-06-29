@@ -323,9 +323,9 @@ export function PlanTimeline() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b-2 border-border-strong px-6 py-3">
-        <div className="flex items-center gap-3">
-          <h1 className="text-lg font-bold">
+      <div className="flex items-center justify-between border-b-2 border-border-strong px-3 py-3 sm:px-6">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          <h1 className="truncate text-base font-bold sm:text-lg">
             {new Date(selectedDate + "T00:00:00").toLocaleDateString("en-US", {
               weekday: "long",
               month: "long",
@@ -369,7 +369,7 @@ export function PlanTimeline() {
                 style={{ height: HOUR_HEIGHT }}
                 onClick={(e) => handleSlotClick(hour, e)}
               >
-                <div className="flex w-20 shrink-0 items-start justify-end border-r-2 border-border-strong px-3 pt-2">
+                <div className="flex w-14 shrink-0 items-start justify-end border-r-2 border-border-strong px-2 pt-2 sm:w-20 sm:px-3">
                   <span className="text-xs font-bold text-foreground-muted">
                     {formatHour(hour)}
                   </span>
@@ -391,7 +391,7 @@ export function PlanTimeline() {
 
           {/* Blocks overlay — column-packed across the whole day. Pointer events
               pass through empty space so clicks reach the hour grid underneath. */}
-          <div className="pointer-events-none absolute bottom-0 left-20 right-0 top-0">
+          <div className="pointer-events-none absolute bottom-0 left-14 right-0 top-0 sm:left-20">
             {/* Recorded focus sessions — read-only, sit behind plan items */}
             {daySessions.map((session) => {
               const l = layout.get(`s:${session.id}`)
@@ -437,7 +437,7 @@ export function PlanTimeline() {
               return (
                 <div
                   key={block.id}
-                  className="pointer-events-auto absolute z-10 overflow-hidden rounded-lg border-2 border-primary/30 bg-primary/10 px-2 py-0.5 transition-all hover:shadow-brutal-xs"
+                  className="group pointer-events-auto absolute z-10 overflow-hidden rounded-lg border-2 border-primary/30 bg-primary/10 px-2 py-0.5 transition-all hover:shadow-brutal-xs"
                   style={{
                     top: block.startMinutes * (HOUR_HEIGHT / 60),
                     height: displayDuration(block.durationMinutes) * (HOUR_HEIGHT / 60),
@@ -477,7 +477,8 @@ export function PlanTimeline() {
                       </span>
                       <button
                         onClick={() => removePlanItem(block.id)}
-                        className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded opacity-0 transition-opacity hover:bg-surface hover:opacity-100"
+                        aria-label="Remove block"
+                        className="flex h-4 w-4 shrink-0 items-center justify-center rounded transition-opacity hover:bg-surface lg:h-3.5 lg:w-3.5 lg:opacity-0 lg:group-hover:opacity-100"
                       >
                         <Trash2 size={10} className="text-foreground-muted" />
                       </button>

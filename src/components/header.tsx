@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { Plus, LogOut } from "lucide-react"
+import { Plus, LogOut, Menu } from "lucide-react"
 import { useTodoStore } from "@/lib/store"
 import { logout } from "@/actions/auth"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -26,6 +26,7 @@ export function Header() {
   const pathname = usePathname()
   const router = useRouter()
   const setAddOpen = useTodoStore((s) => s.setAddOpen)
+  const setSidebarOpen = useTodoStore((s) => s.setSidebarOpen)
   const { icon, name } = usePageTitle()
 
   function handleAdd() {
@@ -35,18 +36,25 @@ export function Header() {
   }
 
   return (
-    <header className="flex h-14 w-full shrink-0 items-center justify-between border-b-2 border-border-strong bg-background-elevated px-4">
-      <div className="flex items-center gap-3">
-        <Link href="/" className="flex items-center gap-2">
+    <header className="flex h-14 w-full shrink-0 items-center justify-between border-b-2 border-border-strong bg-background-elevated px-3 sm:px-4">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+        <button
+          onClick={() => setSidebarOpen(true)}
+          aria-label="Open menu"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-foreground-muted transition-colors hover:bg-surface hover:text-foreground lg:hidden"
+        >
+          <Menu size={20} />
+        </button>
+        <Link href="/" className="flex shrink-0 items-center gap-2">
           <Logo size={28} />
           <span className="hidden text-base font-bold tracking-tight gradient-text-primary sm:inline">
             Hiday Todo
           </span>
         </Link>
-        <div className="h-6 w-px bg-border-strong" />
-        <div className="flex items-center gap-2">
+        <div className="hidden h-6 w-px bg-border-strong sm:block" />
+        <div className="flex min-w-0 items-center gap-2">
           <span className="text-lg leading-none">{icon}</span>
-          <span className="text-sm font-bold">{name}</span>
+          <span className="truncate text-sm font-bold">{name}</span>
         </div>
       </div>
 

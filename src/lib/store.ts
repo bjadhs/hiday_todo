@@ -106,6 +106,8 @@ export type TodoState = {
   pendingWrites: number
   /** Transient UI: whether the add-todo form is open (driven by the header +). */
   addOpen: boolean
+  /** Transient UI: whether the mobile sidebar drawer is open. */
+  sidebarOpen: boolean
 }
 
 export type TodoActions = {
@@ -121,6 +123,7 @@ export type TodoActions = {
   setFilterMode: (mode: FilterMode) => void
   setViewMode: (mode: ViewMode) => void
   setAddOpen: (open: boolean) => void
+  setSidebarOpen: (open: boolean) => void
   addPlanItem: (data: { title: string; date: string; startMinutes: number; durationMinutes?: number; projectId?: string }) => ActionResult
   updatePlanItem: (id: string, updates: Partial<PlanItem>) => void
   removePlanItem: (id: string) => void
@@ -232,6 +235,7 @@ export const useTodoStore = create<TodoState & TodoActions>()((set, get) => ({
   hydrated: false,
   pendingWrites: 0,
   addOpen: false,
+  sidebarOpen: false,
 
   hydrate: (data) =>
     set({
@@ -321,6 +325,7 @@ export const useTodoStore = create<TodoState & TodoActions>()((set, get) => ({
   setFilterMode: (mode) => set({ filterMode: mode }),
   setViewMode: (mode) => set({ viewMode: mode }),
   setAddOpen: (open) => set({ addOpen: open }),
+  setSidebarOpen: (open) => set({ sidebarOpen: open }),
 
   addPlanItem: (data) => {
     const parsed = PlanItemInputSchema.safeParse(data)

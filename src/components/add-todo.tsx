@@ -146,7 +146,7 @@ export function AddTodo() {
         ))}
       </div>
 
-      <div className="mb-3 flex gap-2">
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row">
         <div className="flex-1">
           <label className="mb-1 block text-xs font-semibold text-foreground-muted">Date</label>
           <Input
