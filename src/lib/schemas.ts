@@ -35,6 +35,7 @@ export const ProjectSchema = z.object({
   name: z.string().min(1),
   color: z.string().min(1),
   icon: z.string().min(1),
+  sortOrder: z.number().int().default(0),
 })
 
 export const TodoSchema = z.object({
@@ -50,15 +51,21 @@ export const TodoSchema = z.object({
   // Accumulated pomodoro/timer focus time, in seconds. Defaults to 0 so todos
   // persisted before this field existed still parse on rehydration.
   focusSeconds: z.number().int().nonnegative().default(0),
+  // Soft-delete timestamp (Unix ms); null = active. See the Archived trash.
+  deletedAt: z.number().int().nonnegative().nullable().default(null),
 })
 
 export const PlanItemSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
+  // Optional longer note shown in the edit dialog. Nullable so rows/blobs
+  // created before this field existed still parse.
+  description: z.string().nullable().default(null),
   date: DateStringSchema,
   startMinutes: z.number().int().min(0).max(MINUTES_IN_DAY),
   durationMinutes: z.number().int().positive(),
   projectId: z.string().min(1),
+  deletedAt: z.number().int().nonnegative().nullable().default(null),
 })
 
 // A recorded focus run. `startedAt`/`endedAt` are Unix ms; `durationSeconds` is
@@ -71,6 +78,7 @@ export const FocusSessionSchema = z.object({
   startedAt: z.number().int().nonnegative(),
   endedAt: z.number().int().nonnegative(),
   durationSeconds: z.number().int().nonnegative(),
+  deletedAt: z.number().int().nonnegative().nullable().default(null),
 })
 
 // --- Inferred types (consumed by types.ts) ------------------------------
@@ -103,11 +111,13 @@ export const ProjectInputSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
   color: z.string().min(1),
   icon: z.string().min(1),
+  sortOrder: z.number().int().optional(),
 })
 export type ProjectInput = z.input<typeof ProjectInputSchema>
 
 export const PlanItemInputSchema = z.object({
   title: z.string().trim().min(1, "Title is required"),
+  description: z.string().trim().nullable().default(null),
   date: DateStringSchema,
   startMinutes: z.number().int().min(0).max(MINUTES_IN_DAY),
   durationMinutes: z.number().int().positive().default(60),

@@ -1,6 +1,6 @@
 "use server"
 
-import { eq, sql } from "drizzle-orm"
+import { eq, isNull, sql } from "drizzle-orm"
 import { getDb, schema } from "@/lib/db"
 import { notifyChange } from "@/lib/db/realtime"
 import { assertAuthed } from "@/lib/auth-server"
@@ -13,6 +13,7 @@ export async function createTodo(todo: Todo): Promise<void> {
   const [{ count }] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(schema.todos)
+    .where(isNull(schema.todos.deletedAt))
 
   await db.insert(schema.todos).values({
     id: todo.id,
@@ -38,7 +39,22 @@ export async function updateTodo(id: string, updates: Partial<Todo>): Promise<vo
   await notifyChange()
 }
 
-export async function removeTodo(id: string): Promise<void> {
+/** Soft-delete: move a todo to the Archived trash. */
+export async function archiveTodo(id: string, deletedAt: number): Promise<void> {
+  await assertAuthed()
+  await getDb().update(schema.todos).set({ deletedAt }).where(eq(schema.todos.id, id))
+  await notifyChange()
+}
+
+/** Restore an archived todo back to its place. */
+export async function restoreTodo(id: string): Promise<void> {
+  await assertAuthed()
+  await getDb().update(schema.todos).set({ deletedAt: null }).where(eq(schema.todos.id, id))
+  await notifyChange()
+}
+
+/** Permanently delete a todo (manual "delete now" from the Archived view). */
+export async function deleteTodoForever(id: string): Promise<void> {
   await assertAuthed()
   await getDb().delete(schema.todos).where(eq(schema.todos.id, id))
   await notifyChange()

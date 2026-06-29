@@ -22,6 +22,20 @@
       "when": 1782648081901,
       "tag": "0002_faulty_morgan_stark",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1782729441678,
+      "tag": "0003_shocking_mentallo",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1782733084849,
+      "tag": "0004_absurd_stranger",
+      "breakpoints": true
     }
   ]
 }

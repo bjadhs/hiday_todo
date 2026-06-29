@@ -7,6 +7,7 @@ import { useTodoStore } from "@/lib/store"
 import { logout } from "@/actions/auth"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Logo } from "@/components/logo"
+import { ProjectIcon } from "@/lib/project-icons"
 
 /** Resolve the icon + name for the current route (page or project). */
 function usePageTitle() {
@@ -53,7 +54,7 @@ export function Header() {
         </Link>
         <div className="hidden h-6 w-px bg-border-strong sm:block" />
         <div className="flex min-w-0 items-center gap-2">
-          <span className="text-lg leading-none">{icon}</span>
+          <ProjectIcon name={icon} size={20} />
           <span className="truncate text-sm font-bold">{name}</span>
         </div>
       </div>

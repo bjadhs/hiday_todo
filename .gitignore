@@ -26,6 +26,9 @@ yarn-error.log*
 !.env.example
 !.env.docker.example
 
+# database backups (pg_dump output from the db-backup service)
+/backups
+
 # os / editor
 .DS_Store
 *.pem

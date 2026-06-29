@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Timer, X } from "lucide-react"
 import { useTodoStore } from "@/lib/store"
+import { ProjectIcon } from "@/lib/project-icons"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { formatClockTime, formatFocusTotal, formatDate, msToDateString } from "@/lib/utils"
@@ -107,7 +108,7 @@ export function TodoEditForm({ todo, onClose }: TodoEditFormProps) {
                   : "border-border-strong bg-surface hover:border-foreground-muted"
               }`}
             >
-              <span className="text-sm leading-none">{p.icon}</span>
+              <ProjectIcon name={p.icon} size={14} />
               {p.name}
             </button>
           ))}

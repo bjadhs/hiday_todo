@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Play, Pause, Square, Timer, Coffee } from "lucide-react"
 import { useTodoStore, TIMER_CHIME_SECONDS } from "@/lib/store"
 import { useMounted } from "@/lib/use-mounted"
+import { ProjectIcon } from "@/lib/project-icons"
 import { cn, formatClock } from "@/lib/utils"
 
 /**
@@ -114,7 +115,7 @@ export function PomodoroWidget() {
           {isTimer ? "Timer" : isBreak ? "Break" : "Focus"}
         </span>
         <span className="inline-flex items-center gap-1 rounded-md border border-border-strong bg-surface px-1.5 py-0.5 text-[10px] font-bold">
-          {project?.icon} {project?.name}
+          {project && <ProjectIcon name={project.icon} size={10} />} {project?.name}
         </span>
       </button>
 

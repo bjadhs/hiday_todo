@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import { X, Timer, Coffee } from "lucide-react"
 import { useTodoStore, type PomodoroMode } from "@/lib/store"
+import { ProjectIcon } from "@/lib/project-icons"
 import { Button } from "@/components/ui/button"
 import type { Todo } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -70,7 +71,7 @@ export function PomodoroSetupDialog({ todo, onClose }: PomodoroSetupDialogProps)
           <div className="min-w-0">
             <h2 className="text-base font-extrabold leading-tight">Start focus session</h2>
             <p className="mt-0.5 flex items-center gap-1.5 text-xs text-foreground-muted">
-              {project && <span>{project.icon}</span>}
+              {project && <ProjectIcon name={project.icon} size={14} />}
               <span className="truncate">{todo.title}</span>
             </p>
           </div>

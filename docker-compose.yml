@@ -20,6 +20,25 @@ services:
       timeout: 5s
       retries: 10
 
+  # Nightly pg_dump backups into ./backups (gzipped SQL), pruned after
+  # BACKUP_RETENTION_DAYS. Restore with: gunzip -c backups/<file>.sql.gz | psql ...
+  db-backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
+    volumes:
+      - ./backups:/backups
+      - ./scripts/backup.sh:/usr/local/bin/backup.sh:ro
+    entrypoint: ["sh", "/usr/local/bin/backup.sh"]
+
   app:
     build: .
     restart: unless-stopped

@@ -1,10 +1,13 @@
 "use client"
 
 import { useState, useMemo, useRef, useEffect, useCallback } from "react"
-import { Trash2, Timer } from "lucide-react"
+import { Timer } from "lucide-react"
 import { useTodoStore } from "@/lib/store"
 import { firstError } from "@/lib/schemas"
+import type { PlanItem } from "@/lib/types"
 import { Input } from "@/components/ui/input"
+import { PlanEditDialog } from "@/components/plan/plan-edit-dialog"
+import { ProjectIcon } from "@/lib/project-icons"
 import { msToDateString, msToMinutes, formatClockTime, formatFocusTotal } from "@/lib/utils"
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
@@ -135,14 +138,13 @@ function layoutColumns(items: LayoutInput[]): Map<string, LaidOut> {
 }
 
 export function PlanTimeline() {
-  const { planItems, projects, addPlanItem, updatePlanItem, removePlanItem } = useTodoStore()
+  const { planItems, projects, addPlanItem } = useTodoStore()
   const sessions = useTodoStore((s) => s.sessions)
   const todos = useTodoStore((s) => s.todos)
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0])
   const [editValue, setEditValue] = useState("")
   const [editError, setEditError] = useState<string | null>(null)
-  const [editingBlock, setEditingBlock] = useState<string | null>(null)
-  const [editingBlockValue, setEditingBlockValue] = useState("")
+  const [editingItem, setEditingItem] = useState<PlanItem | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const today = new Date().toISOString().split("T")[0]
@@ -243,8 +245,6 @@ export function PlanTimeline() {
 
   const handleSlotClick = useCallback(
     (hour: number, event: React.MouseEvent) => {
-      if (editingBlock) return
-
       const rect = event.currentTarget.getBoundingClientRect()
       const y = event.clientY - rect.top
       const fraction = y / rect.height
@@ -256,7 +256,7 @@ export function PlanTimeline() {
       setEditValue("")
       setEditError(null)
     },
-    [editingBlock]
+    []
   )
 
   function handleSave() {
@@ -282,14 +282,6 @@ export function PlanTimeline() {
     setInlineEdit(null)
     setEditValue("")
     setEditError(null)
-  }
-
-  function handleBlockSave(id: string) {
-    if (editingBlockValue.trim()) {
-      updatePlanItem(id, { title: editingBlockValue.trim() })
-    }
-    setEditingBlock(null)
-    setEditingBlockValue("")
   }
 
   function goToToday() {
@@ -419,7 +411,7 @@ export function PlanTimeline() {
                   </div>
                   {project && (
                     <div className="mt-px flex items-center gap-1">
-                      <span className="text-[10px] leading-none">{project.icon}</span>
+                      <ProjectIcon name={project.icon} size={10} />
                       <span className="text-[10px] leading-none text-foreground-muted">
                         {formatClockTime(session.startedAt)}
                       </span>
@@ -435,62 +427,35 @@ export function PlanTimeline() {
               if (!l) return null
               const project = projects.find((p) => p.id === block.projectId)
               return (
-                <div
+                <button
                   key={block.id}
-                  className="group pointer-events-auto absolute z-10 overflow-hidden rounded-lg border-2 border-primary/30 bg-primary/10 px-2 py-0.5 transition-all hover:shadow-brutal-xs"
+                  type="button"
+                  className="group pointer-events-auto absolute z-10 block cursor-pointer overflow-hidden rounded-lg border-2 border-primary/30 bg-primary/10 px-2 py-0.5 text-left transition-all hover:shadow-brutal-xs"
                   style={{
                     top: block.startMinutes * (HOUR_HEIGHT / 60),
                     height: displayDuration(block.durationMinutes) * (HOUR_HEIGHT / 60),
                     left: `calc(${l.leftPct}% + 4px)`,
                     width: `calc(${l.widthPct}% - 8px)`,
                   }}
-                  onClick={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setEditingItem(block)
+                  }}
+                  title="Click to edit"
                 >
-                  {editingBlock === block.id ? (
-                    <Input
-                      autoFocus
-                      value={editingBlockValue}
-                      onChange={(e) => setEditingBlockValue(e.target.value)}
-                      onBlur={() => handleBlockSave(block.id)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleBlockSave(block.id)
-                        if (e.key === "Escape") {
-                          setEditingBlock(null)
-                          setEditingBlockValue("")
-                        }
-                      }}
-                      className="h-6 text-xs"
-                    />
-                  ) : (
-                    <div className="flex items-center gap-1">
-                      <h3
-                        className="flex-1 cursor-pointer truncate font-medium"
-                        onDoubleClick={() => {
-                          setEditingBlock(block.id)
-                          setEditingBlockValue(block.title)
-                        }}
-                      >
-                        {block.title}
-                      </h3>
-                      <span className="shrink-0 text-[10px] font-bold leading-none text-foreground-muted">
-                        {formatMinutes(block.startMinutes)}
-                      </span>
-                      <button
-                        onClick={() => removePlanItem(block.id)}
-                        aria-label="Remove block"
-                        className="flex h-4 w-4 shrink-0 items-center justify-center rounded transition-opacity hover:bg-surface lg:h-3.5 lg:w-3.5 lg:opacity-0 lg:group-hover:opacity-100"
-                      >
-                        <Trash2 size={10} className="text-foreground-muted" />
-                      </button>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-1">
+                    <h3 className="flex-1 truncate font-medium">{block.title}</h3>
+                    <span className="shrink-0 text-[10px] font-bold leading-none text-foreground-muted">
+                      {formatMinutes(block.startMinutes)}
+                    </span>
+                  </div>
                   {project && (
                     <div className="mt-px flex items-center gap-1">
-                      <span className="text-[10px] leading-none">{project.icon}</span>
+                      <ProjectIcon name={project.icon} size={10} />
                       <span className="text-[10px] leading-none text-foreground-muted">{project.name}</span>
                     </div>
                   )}
-                </div>
+                </button>
               )
             })}
 
@@ -536,6 +501,10 @@ export function PlanTimeline() {
           </div>
         </div>
       </div>
+
+      {editingItem && (
+        <PlanEditDialog item={editingItem} onClose={() => setEditingItem(null)} />
+      )}
     </div>
   )
 }

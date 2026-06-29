@@ -30,6 +30,14 @@ export async function createProject(project: Project): Promise<void> {
   await notifyChange()
 }
 
+/** Apply a partial update to a project. Keys map 1:1 to columns. */
+export async function updateProject(id: string, updates: Partial<Project>): Promise<void> {
+  await assertAuthed()
+  if (Object.keys(updates).length === 0) return
+  await getDb().update(schema.projects).set(updates).where(eq(schema.projects.id, id))
+  await notifyChange()
+}
+
 /** Delete a project (never Inbox) and reassign its todos to Inbox. */
 export async function removeProject(id: string): Promise<void> {
   await assertAuthed()

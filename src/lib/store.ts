@@ -10,27 +10,35 @@ import {
   type ActionResult,
 } from "./schemas"
 import { getAllData } from "@/actions/data"
-import { createProject as createProjectAction, removeProject as removeProjectAction } from "@/actions/projects"
+import { createProject as createProjectAction, updateProject as updateProjectAction, removeProject as removeProjectAction } from "@/actions/projects"
 import {
   createTodo as createTodoAction,
   updateTodo as updateTodoAction,
-  removeTodo as removeTodoAction,
+  archiveTodo as archiveTodoAction,
+  restoreTodo as restoreTodoAction,
+  deleteTodoForever as deleteTodoForeverAction,
   moveTodo as moveTodoAction,
 } from "@/actions/todos"
 import {
   createPlanItem as createPlanItemAction,
   updatePlanItem as updatePlanItemAction,
-  removePlanItem as removePlanItemAction,
+  archivePlanItem as archivePlanItemAction,
+  restorePlanItem as restorePlanItemAction,
+  deletePlanItemForever as deletePlanItemForeverAction,
 } from "@/actions/plan-items"
 import {
   createSession as createSessionAction,
-  removeSession as removeSessionAction,
-  removeSessionsForTodo as removeSessionsForTodoAction,
+  archiveSession as archiveSessionAction,
+  restoreSession as restoreSessionAction,
+  deleteSessionForever as deleteSessionForeverAction,
+  archiveSessionsForTodo as archiveSessionsForTodoAction,
+  restoreSessionsForTodo as restoreSessionsForTodoAction,
+  deleteSessionsForTodoForever as deleteSessionsForTodoForeverAction,
 } from "@/actions/sessions"
 
 const INBOX_ID = "__inbox__"
 
-const DEFAULT_INBOX: Project = { id: INBOX_ID, name: "Inbox", color: "#6D28D9", icon: "📥" }
+const DEFAULT_INBOX: Project = { id: INBOX_ID, name: "Inbox", color: "#6D28D9", icon: "📥", sortOrder: 0 }
 
 function generateId() {
   return Math.random().toString(36).substring(2, 10)
@@ -96,6 +104,10 @@ export type TodoState = {
   planItems: PlanItem[]
   /** Recorded focus runs (one per completed timer/pomodoro run). */
   sessions: FocusSession[]
+  /** Soft-deleted items in the Archived trash (purged after 3 days). */
+  archivedTodos: Todo[]
+  archivedPlanItems: PlanItem[]
+  archivedSessions: FocusSession[]
   /** The active focus session, or null when nothing is running. */
   pomodoro: PomodoroSession | null
   /** Latest notification signal (bell + toast); null until the first fires. */
@@ -111,22 +123,41 @@ export type TodoState = {
 }
 
 export type TodoActions = {
-  hydrate: (data: { projects: Project[]; todos: Todo[]; planItems: PlanItem[]; sessions: FocusSession[] }) => void
-  addProject: (name: string, color: string, icon: string) => ActionResult
+  hydrate: (data: {
+    projects: Project[]
+    todos: Todo[]
+    planItems: PlanItem[]
+    sessions: FocusSession[]
+    archivedTodos: Todo[]
+    archivedPlanItems: PlanItem[]
+    archivedSessions: FocusSession[]
+  }) => void
+  addProject: (name: string, color: string, icon: string, sortOrder?: number) => ActionResult
+  updateProject: (id: string, updates: Partial<Project>) => void
   removeProject: (id: string) => void
   selectProject: (id: string) => void
   addTodo: (data: { title: string; projectId: string; tags?: string[]; dayPeriod?: DayPeriod | null; date?: string | null; kanbanStatus?: KanbanStatus }) => ActionResult
   updateTodo: (id: string, updates: Partial<Todo>) => void
+  /** Soft-delete a todo (and its sessions) into the Archived trash. */
   removeTodo: (id: string) => void
+  /** Restore an archived todo (and its sessions) from the trash. */
+  restoreTodo: (id: string) => void
+  /** Permanently delete an archived todo (and its sessions). */
+  purgeTodo: (id: string) => void
   toggleTodo: (id: string) => void
   moveTodo: (id: string, status: KanbanStatus, overId?: string | null) => void
   setFilterMode: (mode: FilterMode) => void
   setViewMode: (mode: ViewMode) => void
   setAddOpen: (open: boolean) => void
   setSidebarOpen: (open: boolean) => void
-  addPlanItem: (data: { title: string; date: string; startMinutes: number; durationMinutes?: number; projectId?: string }) => ActionResult
+  addPlanItem: (data: { title: string; description?: string | null; date: string; startMinutes: number; durationMinutes?: number; projectId?: string }) => ActionResult
   updatePlanItem: (id: string, updates: Partial<PlanItem>) => void
+  /** Soft-delete a plan item into the Archived trash. */
   removePlanItem: (id: string) => void
+  /** Restore an archived plan item from the trash. */
+  restorePlanItem: (id: string) => void
+  /** Permanently delete an archived plan item. */
+  purgePlanItem: (id: string) => void
   startPomodoro: (data: { todoId: string; mode: PomodoroMode; focusMinutes: number; breakMinutes: number }) => void
   /** Advance the active session by one second (called by the widget's interval). */
   tickPomodoro: () => void
@@ -134,8 +165,12 @@ export type TodoActions = {
   togglePomodoro: () => void
   /** End the session, flushing any partial focus time to the todo. */
   stopPomodoro: () => void
-  /** Delete a recorded focus session. */
+  /** Soft-delete a recorded focus session into the Archived trash. */
   removeSession: (id: string) => void
+  /** Restore an archived focus session from the trash. */
+  restoreSession: (id: string) => void
+  /** Permanently delete an archived focus session. */
+  purgeSession: (id: string) => void
 }
 
 function ensureInbox(projects: Project[]): Project[] {
@@ -215,6 +250,7 @@ function recordFocusSession(p: PomodoroSession) {
     startedAt: p.startedAt,
     endedAt: Date.now(),
     durationSeconds: focus,
+    deletedAt: null,
   }
   useTodoStore.setState((s) => ({ sessions: [...s.sessions, session] }))
   persist(createSessionAction(session))
@@ -230,6 +266,9 @@ export const useTodoStore = create<TodoState & TodoActions>()((set, get) => ({
   viewMode: "kanban",
   planItems: [],
   sessions: [],
+  archivedTodos: [],
+  archivedPlanItems: [],
+  archivedSessions: [],
   pomodoro: null,
   pomodoroNotice: null,
   hydrated: false,
@@ -243,16 +282,30 @@ export const useTodoStore = create<TodoState & TodoActions>()((set, get) => ({
       todos: data.todos,
       planItems: data.planItems,
       sessions: data.sessions,
+      archivedTodos: data.archivedTodos,
+      archivedPlanItems: data.archivedPlanItems,
+      archivedSessions: data.archivedSessions,
       hydrated: true,
     }),
 
-  addProject: (name, color, icon) => {
+  addProject: (name, color, icon, sortOrder) => {
     const parsed = ProjectInputSchema.safeParse({ name, color, icon })
     if (!parsed.success) return actionError(parsed.error)
-    const project: Project = { id: generateId(), ...parsed.data }
+    const project: Project = {
+      id: generateId(),
+      ...parsed.data,
+      sortOrder: sortOrder ?? get().projects.length,
+    }
     set((s) => ({ projects: [...s.projects, project] }))
     persist(createProjectAction(project))
     return { ok: true }
+  },
+
+  updateProject: (id, updates) => {
+    set((s) => ({
+      projects: s.projects.map((p) => (p.id === id ? { ...p, ...updates } : p)),
+    }))
+    persist(updateProjectAction(id, updates))
   },
 
   removeProject: (id) => {
@@ -269,7 +322,7 @@ export const useTodoStore = create<TodoState & TodoActions>()((set, get) => ({
   addTodo: (data) => {
     const parsed = TodoInputSchema.safeParse(data)
     if (!parsed.success) return actionError(parsed.error)
-    const todo: Todo = { id: generateId(), completed: false, createdAt: Date.now(), focusSeconds: 0, ...parsed.data }
+    const todo: Todo = { id: generateId(), completed: false, createdAt: Date.now(), focusSeconds: 0, deletedAt: null, ...parsed.data }
     set((s) => ({ todos: [...s.todos, todo] }))
     persist(createTodoAction(todo))
     return { ok: true }
@@ -283,12 +336,56 @@ export const useTodoStore = create<TodoState & TodoActions>()((set, get) => ({
   },
 
   removeTodo: (id) => {
+    const now = Date.now()
+    let found = false
+    let hadSessions = false
+    set((s) => {
+      const todo = s.todos.find((t) => t.id === id)
+      if (!todo) return {}
+      found = true
+      const sessionsForTodo = s.sessions.filter((x) => x.todoId === id)
+      hadSessions = sessionsForTodo.length > 0
+      return {
+        todos: s.todos.filter((t) => t.id !== id),
+        archivedTodos: [{ ...todo, deletedAt: now }, ...s.archivedTodos],
+        sessions: s.sessions.filter((x) => x.todoId !== id),
+        archivedSessions: [
+          ...sessionsForTodo.map((x) => ({ ...x, deletedAt: now })),
+          ...s.archivedSessions,
+        ],
+      }
+    })
+    if (!found) return
+    persist(archiveTodoAction(id, now))
+    if (hadSessions) persist(archiveSessionsForTodoAction(id, now))
+  },
+
+  restoreTodo: (id) => {
+    let found = false
+    set((s) => {
+      const todo = s.archivedTodos.find((t) => t.id === id)
+      if (!todo) return {}
+      found = true
+      const sessionsForTodo = s.archivedSessions.filter((x) => x.todoId === id)
+      return {
+        archivedTodos: s.archivedTodos.filter((t) => t.id !== id),
+        todos: [...s.todos, { ...todo, deletedAt: null }],
+        archivedSessions: s.archivedSessions.filter((x) => x.todoId !== id),
+        sessions: [...s.sessions, ...sessionsForTodo.map((x) => ({ ...x, deletedAt: null }))],
+      }
+    })
+    if (!found) return
+    persist(restoreTodoAction(id))
+    persist(restoreSessionsForTodoAction(id))
+  },
+
+  purgeTodo: (id) => {
     set((s) => ({
-      todos: s.todos.filter((t) => t.id !== id),
-      sessions: s.sessions.filter((x) => x.todoId !== id),
+      archivedTodos: s.archivedTodos.filter((t) => t.id !== id),
+      archivedSessions: s.archivedSessions.filter((x) => x.todoId !== id),
     }))
-    persist(removeTodoAction(id))
-    persist(removeSessionsForTodoAction(id))
+    persist(deleteTodoForeverAction(id))
+    persist(deleteSessionsForTodoForeverAction(id))
   },
 
   toggleTodo: (id) => {
@@ -330,7 +427,7 @@ export const useTodoStore = create<TodoState & TodoActions>()((set, get) => ({
   addPlanItem: (data) => {
     const parsed = PlanItemInputSchema.safeParse(data)
     if (!parsed.success) return actionError(parsed.error)
-    const item: PlanItem = { id: generateId(), ...parsed.data }
+    const item: PlanItem = { id: generateId(), deletedAt: null, ...parsed.data }
     set((s) => ({ planItems: [...s.planItems, item] }))
     persist(createPlanItemAction(item))
     return { ok: true }
@@ -344,8 +441,37 @@ export const useTodoStore = create<TodoState & TodoActions>()((set, get) => ({
   },
 
   removePlanItem: (id) => {
-    set((s) => ({ planItems: s.planItems.filter((p) => p.id !== id) }))
-    persist(removePlanItemAction(id))
+    const now = Date.now()
+    let found = false
+    set((s) => {
+      const item = s.planItems.find((p) => p.id === id)
+      if (!item) return {}
+      found = true
+      return {
+        planItems: s.planItems.filter((p) => p.id !== id),
+        archivedPlanItems: [{ ...item, deletedAt: now }, ...s.archivedPlanItems],
+      }
+    })
+    if (found) persist(archivePlanItemAction(id, now))
+  },
+
+  restorePlanItem: (id) => {
+    let found = false
+    set((s) => {
+      const item = s.archivedPlanItems.find((p) => p.id === id)
+      if (!item) return {}
+      found = true
+      return {
+        archivedPlanItems: s.archivedPlanItems.filter((p) => p.id !== id),
+        planItems: [...s.planItems, { ...item, deletedAt: null }],
+      }
+    })
+    if (found) persist(restorePlanItemAction(id))
+  },
+
+  purgePlanItem: (id) => {
+    set((s) => ({ archivedPlanItems: s.archivedPlanItems.filter((p) => p.id !== id) }))
+    persist(deletePlanItemForeverAction(id))
   },
 
   startPomodoro: ({ todoId, mode, focusMinutes, breakMinutes }) => {
@@ -440,7 +566,36 @@ export const useTodoStore = create<TodoState & TodoActions>()((set, get) => ({
   },
 
   removeSession: (id) => {
-    set((s) => ({ sessions: s.sessions.filter((x) => x.id !== id) }))
-    persist(removeSessionAction(id))
+    const now = Date.now()
+    let found = false
+    set((s) => {
+      const session = s.sessions.find((x) => x.id === id)
+      if (!session) return {}
+      found = true
+      return {
+        sessions: s.sessions.filter((x) => x.id !== id),
+        archivedSessions: [{ ...session, deletedAt: now }, ...s.archivedSessions],
+      }
+    })
+    if (found) persist(archiveSessionAction(id, now))
+  },
+
+  restoreSession: (id) => {
+    let found = false
+    set((s) => {
+      const session = s.archivedSessions.find((x) => x.id === id)
+      if (!session) return {}
+      found = true
+      return {
+        archivedSessions: s.archivedSessions.filter((x) => x.id !== id),
+        sessions: [...s.sessions, { ...session, deletedAt: null }],
+      }
+    })
+    if (found) persist(restoreSessionAction(id))
+  },
+
+  purgeSession: (id) => {
+    set((s) => ({ archivedSessions: s.archivedSessions.filter((x) => x.id !== id) }))
+    persist(deleteSessionForeverAction(id))
   },
 }))

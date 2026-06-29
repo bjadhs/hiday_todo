@@ -39,6 +39,7 @@ docker compose up -d --build   # build image, start db+app; entrypoint migrates 
 - **`.env`** (next to `docker-compose.yml`, gitignored — see `.env.docker.example`) supplies `POSTGRES_USER/PASSWORD/DB`, `APP_PASSWORD`, `AUTH_SECRET`.
 - **Public HTTPS** is via an external Traefik on `dokploy-network`: the `app` service carries `traefik.*` labels routing `todo.bijbrin.cloud` → port 3000 with a Let's Encrypt cert (HTTP→HTTPS redirect). Host ports are bound to the Tailscale IP only, so direct `:8085`/`:5435` access is private.
 - **Reverse-proxy gotcha:** behind a proxy on a custom domain, Next.js rejects Server Actions (login/add/edit) with a **403** unless the forwarded host is allowlisted — see `serverActions.allowedOrigins` in `next.config.ts`. Add any new domain there (a rebuild is required; it's baked at build time).
+- **Backups:** a `db-backup` service (postgres:16-alpine) runs `scripts/backup.sh` — a gzipped `pg_dump` of the database into `./backups` (bind mount, gitignored), pruned after `BACKUP_RETENTION_DAYS` (default 7). It backs up on start then ~daily. Restore with `gunzip -c backups/<file>.sql.gz | psql <conn>`. Note: the DB has **no WAL archiving / PITR**, so these dumps are the only safety net.
 
 ### Building the image — two prerequisites
 
@@ -67,20 +68,24 @@ todo/src/
 │   │   ├── layout.tsx          # Sidebar + full-height main pane
 │   │   ├── page.tsx            # "/"  → <TodoList projectId="__all__" />
 │   │   ├── [projectId]/page.tsx# "/:projectId" (and "/inbox") → <TodoList />
-│   │   └── plan/page.tsx       # "/plan" → <PlanTimeline />
+│   │   ├── plan/page.tsx       # "/plan" → <PlanTimeline />
+│   │   ├── plan-md/page.tsx    # "/plan-md" → <PlanMd /> (daily markdown)
+│   │   └── archived/page.tsx   # "/archived" → <ArchivedView /> (soft-delete trash)
 │   ├── layout.tsx              # Root layout, <Providers>, metadata
 │   ├── providers.tsx           # next-themes ThemeProvider
 │   └── globals.css             # Tailwind v4 theme + brutalist utilities
 ├── components/
 │   ├── kanban/                 # Drag-and-drop board (board → column → card)
-│   ├── plan/                   # Day-planner timeline
+│   ├── plan/                   # Day-planner timeline + edit dialog + markdown view
 │   ├── ui/                     # Base primitives: badge, button, input
 │   ├── add-todo.tsx            # Expanding "add a todo" form (list/grid views)
+│   ├── archived-view.tsx       # Archived trash: restore / permanently delete
 │   ├── sidebar.tsx             # Nav + project CRUD + theme toggle
 │   ├── theme-toggle.tsx
 │   ├── todo-item.tsx           # Todo row for list/grid views
 │   └── todo-list.tsx           # Page shell: header, filter/view tabs, body
 └── lib/
+    ├── archive.ts              # ARCHIVE_RETENTION_MS (3-day trash window)
     ├── store.ts                # Zustand store (state + actions + persist)
     ├── types.ts                # Shared types
     ├── use-mounted.ts          # Hydration-safe mount guard
@@ -127,7 +132,30 @@ Drag-and-drop board ported from `myapp`'s kanban, adapted to the local store.
 
 ## Day planner (`/plan`)
 
-`plan-timeline.tsx` renders a 24-hour vertical timeline. Click to add a `PlanItem` (snapped to 15-minute increments, default 60-minute duration); blocks can be edited and removed. Times are stored as minutes-from-midnight (`startMinutes`, `durationMinutes`).
+`plan-timeline.tsx` renders a 24-hour vertical timeline. Click empty space to add a `PlanItem` (snapped to 15-minute increments, default 60-minute duration). Times are stored as minutes-from-midnight (`startMinutes`, `durationMinutes`).
+
+Clicking an existing block opens **`plan-edit-dialog.tsx`** — a modal (no Radix dep; a fixed overlay closed by Escape / backdrop click) to edit `title`, `description`, `projectId`, and the time span. Start/end/duration are three linked views of the same span: editing the start shifts the block (keeps duration); editing the end or duration repins the other. The dialog also has a Delete action. `PlanItem.description` is an optional nullable text column (migration `0003`).
+
+## Daily markdown (`/plan-md`, "Plan MD" in the sidebar)
+
+`plan-md.tsx` is an **editable** monospace markdown view of a single day, synced bidirectionally with the `/plan` timeline (both read the same Zustand store, so edits on either side reflect on the other; cross-tab via realtime rehydrate). `←`/`→`/Today date nav + a **Copy** button. Three sections per day:
+- **`## Plan`** — editable & synced: that day's blocks as `### HH:MM – HH:MM · Title` headings with `Project:` and optional `Note:` lines.
+- **`## Focused`** / **`## Completed`** — read-only context (focus sessions for the day; todos with `completed && date === selectedDate`). Regenerated on every sync and ignored by the parser.
+
+**Sync model** (see `src/lib/plan-markdown.ts`): a `canonicalMarkdown` is derived from the store; a `draftMarkdown` wins once you start editing. Sync is **manual** — a **Sync** button applies the `## Plan` section. The header shows a status badge: green **Synced**, amber **Unsynced** (pending edits), red **Sync failed**. The most-recent entry is at the top of each section, with a `---` rule between entries.
+
+`parsePlanMarkdown(markdown, knownProjectNames)` returns `{ blocks, errors }`. **Validation is all-or-nothing**: if any `### ` line is malformed, has an invalid time, has end ≤ start, names a non-existent project, or duplicates another block, nothing is applied — the offending lines are listed in a banner (`Line N: reason`) and a danger toast is shown. On a clean parse, blocks diff against the day's items by their `(start, end, title)` key (`planItemKey`): matched blocks get in-place `Project:`/`Note:` updates; unmatched parsed blocks are **created**; existing items with no matching block are **deleted**. Because the key includes time+title, editing either is delete-old + create-new (a `Note:` won't survive a time/title change via markdown — use the timeline dialog). Times are 24h `HH:MM` (parser also accepts `9:00 AM`); switching days drops any unsynced draft.
+
+**Delete guard (important):** sync never silently wipes blocks. (1) If the `## Plan` section parses to **zero blocks while items still exist** — the classic "I accidentally cleared the text" case — sync is a **no-op** (toast: nothing changed, blocks safe). (2) Any sync that *would* delete one or more blocks is **held** behind a confirm banner listing what will be deleted (with an emphatic message when it's the whole day); `applySync` only runs on explicit confirm. Editing the textarea or changing day cancels a pending confirm. This guard exists because an earlier version delete-all'd a day's plan when the heading was removed — see git history.
+
+## Archived trash (`/archived`, "Archived" in the sidebar)
+
+Deleting a todo, focus session, or plan block is a **soft delete**, not a hard one. Every `delete_at`-bearing table (`todos`, `sessions`, `plan_items` — migration `0004`) carries a nullable `deleted_at` (Unix ms); `NULL` = active.
+
+- **Store model:** the store keeps active items and archived items in separate arrays (`todos`/`archivedTodos`, etc.). `removeTodo`/`removeSession`/`removePlanItem` now **archive** (stamp `deletedAt = now`, move active→archived) instead of hard-deleting; `restore*` moves back (clears `deletedAt`); `purge*` permanently deletes. Deleting a todo cascades to its sessions (archive/restore/purge together).
+- **Server actions** (`src/actions/{todos,sessions,plan-items}.ts`): `archive* / restore* / delete*Forever` (+ `*SessionsForTodo*` cascades). `ARCHIVE_RETENTION_MS` lives in `src/lib/archive.ts` (kept out of the `"use server"` `data.ts`, which may only export async fns).
+- **Hydration & purge:** `getAllData` first hard-deletes anything older than `ARCHIVE_RETENTION_MS` (3 days), then returns active rows (`deleted_at IS NULL`) plus `archived{Todos,PlanItems,Sessions}` (`IS NOT NULL`).
+- **View:** `archived-view.tsx` lists the three kinds with "deleted Xm ago / purges in Y", an **Undo** (restore) and a permanent-delete button each. Restore returns plan items/sessions to their exact slot (date + time); a todo returns to its project/column but at the **end** of that column (todos carry no position in the `Todo` type).
 
 ## Styling
 

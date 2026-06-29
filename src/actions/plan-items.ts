@@ -12,6 +12,7 @@ export async function createPlanItem(item: PlanItem): Promise<void> {
   await getDb().insert(schema.planItems).values({
     id: item.id,
     title: item.title,
+    description: item.description,
     date: item.date,
     startMinutes: item.startMinutes,
     durationMinutes: item.durationMinutes,
@@ -28,7 +29,22 @@ export async function updatePlanItem(id: string, updates: Partial<PlanItem>): Pr
   await notifyChange()
 }
 
-export async function removePlanItem(id: string): Promise<void> {
+/** Soft-delete: move a plan item to the Archived trash. */
+export async function archivePlanItem(id: string, deletedAt: number): Promise<void> {
+  await assertAuthed()
+  await getDb().update(schema.planItems).set({ deletedAt }).where(eq(schema.planItems.id, id))
+  await notifyChange()
+}
+
+/** Restore an archived plan item back to its slot. */
+export async function restorePlanItem(id: string): Promise<void> {
+  await assertAuthed()
+  await getDb().update(schema.planItems).set({ deletedAt: null }).where(eq(schema.planItems.id, id))
+  await notifyChange()
+}
+
+/** Permanently delete a plan item. */
+export async function deletePlanItemForever(id: string): Promise<void> {
   await assertAuthed()
   await getDb().delete(schema.planItems).where(eq(schema.planItems.id, id))
   await notifyChange()

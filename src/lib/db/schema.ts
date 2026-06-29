@@ -40,15 +40,20 @@ export const todos = pgTable("todos", {
   // Global array position; hydration orders todos by this so kanban drag order
   // survives reloads.
   position: integer("position").notNull().default(0),
+  // Soft-delete timestamp (Unix ms). NULL = active; set = in the Archived trash,
+  // hard-deleted by `getAllData` once older than the retention window.
+  deletedAt: bigint("deleted_at", { mode: "number" }),
 })
 
 export const planItems = pgTable("plan_items", {
   id: text("id").primaryKey(),
   title: text("title").notNull(),
+  description: text("description"),
   date: text("date").notNull(),
   startMinutes: integer("start_minutes").notNull(),
   durationMinutes: integer("duration_minutes").notNull(),
   projectId: text("project_id").notNull(),
+  deletedAt: bigint("deleted_at", { mode: "number" }),
 })
 
 /**
@@ -64,4 +69,5 @@ export const sessions = pgTable("sessions", {
   startedAt: bigint("started_at", { mode: "number" }).notNull(),
   endedAt: bigint("ended_at", { mode: "number" }).notNull(),
   durationSeconds: integer("duration_seconds").notNull(),
+  deletedAt: bigint("deleted_at", { mode: "number" }),
 })

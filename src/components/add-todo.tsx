@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Plus } from "lucide-react"
 import { useTodoStore } from "@/lib/store"
 import { firstError } from "@/lib/schemas"
+import { ProjectIcon } from "@/lib/project-icons"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { DayPeriod, KanbanStatus } from "@/lib/types"
@@ -122,7 +123,7 @@ export function AddTodo() {
                   : "border-border-strong bg-surface hover:border-foreground-muted"
               }`}
             >
-              <span className="text-sm leading-none">{p.icon}</span>
+              <ProjectIcon name={p.icon} size={14} />
               {p.name}
             </button>
           ))}
