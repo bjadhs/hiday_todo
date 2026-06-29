@@ -8,8 +8,12 @@ const DAY_LABELS: Record<DayPeriod, string> = {
   evening: "🌙 Evening",
 }
 
+// Local `YYYY-MM-DD` (not UTC). `toISOString()` would shift the date by the
+// timezone offset (e.g. roll back a day at UTC+5:45), bucketing todos wrong.
 function isoDate(d: Date) {
-  return d.toISOString().split("T")[0]
+  const month = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${d.getFullYear()}-${month}-${day}`
 }
 
 /** The handful of relative date strings the date filter pivots on. */

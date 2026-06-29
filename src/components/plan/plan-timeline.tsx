@@ -8,11 +8,12 @@ import type { PlanItem } from "@/lib/types"
 import { Input } from "@/components/ui/input"
 import { PlanEditDialog } from "@/components/plan/plan-edit-dialog"
 import { ProjectIcon } from "@/lib/project-icons"
-import { msToDateString, msToMinutes, formatClockTime, formatFocusTotal } from "@/lib/utils"
+import { msToDateString, msToMinutes, formatClockTime, formatFocusTotal, formatDurationMinutes, shiftDateString } from "@/lib/utils"
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
 const HOUR_HEIGHT = 72
 const DEFAULT_DURATION = 30
+const MINUTES_IN_DAY = 24 * 60
 const PENDING_ID = "__pending__"
 
 function formatHour(hour: number) {
@@ -20,14 +21,6 @@ function formatHour(hour: number) {
   if (hour < 12) return `${hour} AM`
   if (hour === 12) return "12 PM"
   return `${hour - 12} PM`
-}
-
-function formatMinutes(minutes: number) {
-  const h = Math.floor(minutes / 60)
-  const m = minutes % 60
-  const period = h < 12 ? "AM" : "PM"
-  const displayH = h === 0 ? 12 : h > 12 ? h - 12 : h
-  return `${displayH}:${m.toString().padStart(2, "0")} ${period}`
 }
 
 function nowMinutes() {
@@ -141,13 +134,13 @@ export function PlanTimeline() {
   const { planItems, projects, addPlanItem } = useTodoStore()
   const sessions = useTodoStore((s) => s.sessions)
   const todos = useTodoStore((s) => s.todos)
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0])
+  const [selectedDate, setSelectedDate] = useState(() => msToDateString(new Date().getTime()))
   const [editValue, setEditValue] = useState("")
   const [editError, setEditError] = useState<string | null>(null)
   const [editingItem, setEditingItem] = useState<PlanItem | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const today = new Date().toISOString().split("T")[0]
+  const today = msToDateString(new Date().getTime())
   const isToday = selectedDate === today
 
   // Re-render every 30s so the "now"-based auto-open (via nowMinutes()) refreshes.
@@ -185,13 +178,47 @@ export function PlanTimeline() {
     setInlineEdit(defaultEdit)
   }
 
-  const dayItems = useMemo(
-    () =>
-      planItems
-        .filter((p) => p.date === selectedDate)
-        .sort((a, b) => a.startMinutes - b.startMinutes),
-    [planItems, selectedDate]
-  )
+  // Plan blocks rendered on this day, split at midnight. A block anchored on
+  // `selectedDate` is drawn from its start, cut off at 00:00 if it overflows; a
+  // block anchored on the *previous* day that runs past midnight contributes a
+  // read-from-00:00 continuation segment here. Both segments point at the same
+  // underlying item (click → edit), and the label shows the block's full
+  // duration. `renderDuration` is the visible portion on this day.
+  const dayBlocks = useMemo(() => {
+    const prevDate = shiftDateString(selectedDate, -1)
+    const blocks: {
+      item: PlanItem
+      key: string
+      startMinutes: number
+      renderDuration: number
+      isContinuation: boolean
+      continuesNextDay: boolean
+    }[] = []
+    for (const p of planItems) {
+      const end = p.startMinutes + p.durationMinutes
+      if (p.date === selectedDate) {
+        const visibleEnd = Math.min(MINUTES_IN_DAY, end)
+        blocks.push({
+          item: p,
+          key: p.id,
+          startMinutes: p.startMinutes,
+          renderDuration: visibleEnd - p.startMinutes,
+          isContinuation: false,
+          continuesNextDay: end > MINUTES_IN_DAY,
+        })
+      } else if (p.date === prevDate && end > MINUTES_IN_DAY) {
+        blocks.push({
+          item: p,
+          key: `cont:${p.id}`,
+          startMinutes: 0,
+          renderDuration: end - MINUTES_IN_DAY,
+          isContinuation: true,
+          continuesNextDay: false,
+        })
+      }
+    }
+    return blocks.sort((a, b) => a.startMinutes - b.startMinutes)
+  }, [planItems, selectedDate])
 
   // Recorded focus runs placed on the timeline at their real start, with a
   // length matching the focus duration. Derived (date + slot) from `startedAt`.
@@ -213,11 +240,11 @@ export function PlanTimeline() {
   // inline editor — so overlapping items split the width instead of stacking.
   const layout = useMemo(() => {
     const inputs: LayoutInput[] = []
-    for (const p of dayItems) {
+    for (const b of dayBlocks) {
       inputs.push({
-        id: p.id,
-        startMinutes: p.startMinutes,
-        durationMinutes: displayDuration(p.durationMinutes),
+        id: b.key,
+        startMinutes: b.startMinutes,
+        durationMinutes: displayDuration(b.renderDuration),
       })
     }
     for (const s of daySessions) {
@@ -235,7 +262,7 @@ export function PlanTimeline() {
       })
     }
     return layoutColumns(inputs)
-  }, [dayItems, daySessions, inlineEdit])
+  }, [dayBlocks, daySessions, inlineEdit])
 
   useEffect(() => {
     if (inlineEdit && inputRef.current) {
@@ -271,8 +298,10 @@ export function PlanTimeline() {
     const result = addPlanItem({
       title: editValue,
       date: selectedDate,
+      // New blocks start with a 0-minute duration (start == end). The block is
+      // still drawn at the DEFAULT_DURATION minimum so it stays visible.
       startMinutes: inlineEdit.startMinutes,
-      durationMinutes: DEFAULT_DURATION,
+      durationMinutes: 0,
       projectId: inlineEdit.projectId,
     })
     if (!result.ok) {
@@ -289,15 +318,11 @@ export function PlanTimeline() {
   }
 
   function goToPrev() {
-    const d = new Date(selectedDate + "T00:00:00")
-    d.setDate(d.getDate() - 1)
-    setSelectedDate(d.toISOString().split("T")[0])
+    setSelectedDate(shiftDateString(selectedDate, -1))
   }
 
   function goToNext() {
-    const d = new Date(selectedDate + "T00:00:00")
-    d.setDate(d.getDate() + 1)
-    setSelectedDate(d.toISOString().split("T")[0])
+    setSelectedDate(shiftDateString(selectedDate, 1))
   }
 
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -421,19 +446,22 @@ export function PlanTimeline() {
               )
             })}
 
-            {/* Plan items — editable */}
-            {dayItems.map((block) => {
-              const l = layout.get(block.id)
+            {/* Plan items — editable. Cross-midnight blocks render as two
+                segments (anchor day cut at 00:00 + a continuation the next day);
+                both point at the same item. */}
+            {dayBlocks.map((rb) => {
+              const l = layout.get(rb.key)
               if (!l) return null
+              const block = rb.item
               const project = projects.find((p) => p.id === block.projectId)
               return (
                 <button
-                  key={block.id}
+                  key={rb.key}
                   type="button"
                   className="group pointer-events-auto absolute z-10 block cursor-pointer overflow-hidden rounded-lg border-2 border-primary/30 bg-primary/10 px-2 py-0.5 text-left transition-all hover:shadow-brutal-xs"
                   style={{
-                    top: block.startMinutes * (HOUR_HEIGHT / 60),
-                    height: displayDuration(block.durationMinutes) * (HOUR_HEIGHT / 60),
+                    top: rb.startMinutes * (HOUR_HEIGHT / 60),
+                    height: displayDuration(rb.renderDuration) * (HOUR_HEIGHT / 60),
                     left: `calc(${l.leftPct}% + 4px)`,
                     width: `calc(${l.widthPct}% - 8px)`,
                   }}
@@ -441,18 +469,26 @@ export function PlanTimeline() {
                     e.stopPropagation()
                     setEditingItem(block)
                   }}
-                  title="Click to edit"
+                  title={rb.isContinuation ? "Continued from the previous day · click to edit" : "Click to edit"}
                 >
                   <div className="flex items-center gap-1">
+                    {rb.isContinuation && (
+                      <span className="shrink-0 text-[10px] font-bold leading-none text-primary">↳</span>
+                    )}
                     <h3 className="flex-1 truncate font-medium">{block.title}</h3>
                     <span className="shrink-0 text-[10px] font-bold leading-none text-foreground-muted">
-                      {formatMinutes(block.startMinutes)}
+                      {formatDurationMinutes(block.durationMinutes)}
                     </span>
                   </div>
                   {project && (
                     <div className="mt-px flex items-center gap-1">
                       <ProjectIcon name={project.icon} size={10} />
-                      <span className="text-[10px] leading-none text-foreground-muted">{project.name}</span>
+                      <span className="flex-1 truncate text-[10px] leading-none text-foreground-muted">
+                        {project.name}
+                      </span>
+                      {rb.continuesNextDay && (
+                        <span className="shrink-0 text-[10px] font-bold leading-none text-primary">→ next day</span>
+                      )}
                     </div>
                   )}
                 </button>

@@ -65,10 +65,24 @@ function makeKey(startLabel: string, endLabel: string, title: string): string {
   return `${startLabel}__${endLabel}__${title.trim().toLowerCase()}`
 }
 
+/**
+ * End-time label for a block. When `start + duration` crosses midnight the end
+ * wraps and is suffixed with ` (+1)` (e.g. `23:00 – 01:00 (+1)`) so the block
+ * reads as continuing into the next day. The parser understands the suffix.
+ */
+function endLabelFor(startMinutes: number, durationMinutes: number): string {
+  const rawEnd = startMinutes + durationMinutes
+  if (rawEnd > MINUTES_IN_DAY) return `${minutesToLabel(rawEnd - MINUTES_IN_DAY)} (+1)`
+  return minutesToLabel(rawEnd)
+}
+
 /** Matching key for an existing plan item — diffed against parsed markdown blocks. */
 export function planItemKey(item: Pick<PlanItem, "title" | "startMinutes" | "durationMinutes">): string {
-  const end = Math.min(MINUTES_IN_DAY, item.startMinutes + item.durationMinutes)
-  return makeKey(minutesToLabel(item.startMinutes), minutesToLabel(end), item.title?.trim() || TITLE_FALLBACK)
+  return makeKey(
+    minutesToLabel(item.startMinutes),
+    endLabelFor(item.startMinutes, item.durationMinutes),
+    item.title?.trim() || TITLE_FALLBACK
+  )
 }
 
 /**
@@ -101,9 +115,8 @@ export function generatePlanMarkdown(
     lines.push("_No plan blocks — add one like:_", "_`### 09:00 – 10:00 · Title`_", "")
   } else {
     const blocks = sortedPlan.map((item) => {
-      const end = Math.min(MINUTES_IN_DAY, item.startMinutes + item.durationMinutes)
       const block = [
-        `### ${minutesToLabel(item.startMinutes)} – ${minutesToLabel(end)} · ${item.title?.trim() || TITLE_FALLBACK}`,
+        `### ${minutesToLabel(item.startMinutes)} – ${endLabelFor(item.startMinutes, item.durationMinutes)} · ${item.title?.trim() || TITLE_FALLBACK}`,
         `Project: ${projectName(item.projectId)}`,
       ]
       if (item.description?.trim()) block.push(`Note: ${item.description.trim()}`)
@@ -183,16 +196,23 @@ export function parsePlanMarkdown(markdown: string, knownProjectNames: string[])
     }
 
     const startMinutes = parseTimeLabel(match[1])
-    const endMinutes = parseTimeLabel(match[2])
-    if (startMinutes === null || endMinutes === null) {
+    // A trailing `(+1)` (or `+1`) marks an end time that lands on the next day.
+    const endRaw = match[2].trim()
+    const nextDay = /(\(\+1\)|\+1)$/.test(endRaw)
+    const endClock = parseTimeLabel(endRaw.replace(/\s*(\(\+1\)|\+1)$/, "").trim())
+    if (startMinutes === null || endClock === null) {
       errors.push({ line: lineNo, message: "invalid time — use 24h `HH:MM` (e.g. 09:00) or `9:00 AM`" })
       continue
     }
-    if (endMinutes <= startMinutes) {
-      errors.push({ line: lineNo, message: "end time must be after the start time" })
+    const endMinutes = nextDay ? endClock + MINUTES_IN_DAY : endClock
+    // end == start is allowed (a 0-duration block). An end before the start that
+    // isn't marked `(+1)` is an error — add `(+1)` to cross midnight.
+    if (endMinutes < startMinutes) {
+      errors.push({ line: lineNo, message: "end is before start — add `(+1)` if it's the next day" })
       continue
     }
     const title = match[3].trim() || TITLE_FALLBACK
+    const durationMinutes = endMinutes - startMinutes
 
     // Look ahead for Project:/Note: lines until the next heading/section.
     let projectName: string | null = null
@@ -213,7 +233,7 @@ export function parsePlanMarkdown(markdown: string, knownProjectNames: string[])
       continue
     }
 
-    const key = makeKey(minutesToLabel(startMinutes), minutesToLabel(endMinutes), title)
+    const key = makeKey(minutesToLabel(startMinutes), endLabelFor(startMinutes, durationMinutes), title)
     const firstSeen = seenKeys.get(key)
     if (firstSeen !== undefined) {
       errors.push({ line: lineNo, message: `duplicate of line ${firstSeen} (same time and title)` })
@@ -225,7 +245,7 @@ export function parsePlanMarkdown(markdown: string, knownProjectNames: string[])
       key,
       title,
       startMinutes,
-      durationMinutes: endMinutes - startMinutes,
+      durationMinutes,
       projectName,
       note,
     })

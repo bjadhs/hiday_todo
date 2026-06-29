@@ -30,6 +30,24 @@ export function formatFocusTotal(totalSeconds: number): string {
   return rem === 0 ? `${hours}h` : `${hours}h ${rem}m`
 }
 
+/** Minutes → compact duration label, e.g. "30m", "1h", "1h 30m". */
+export function formatDurationMinutes(minutes: number): string {
+  const mins = Math.max(0, Math.round(minutes))
+  if (mins < 60) return `${mins}m`
+  const hours = Math.floor(mins / 60)
+  const rem = mins % 60
+  return rem === 0 ? `${hours}h` : `${hours}h ${rem}m`
+}
+
+/** `YYYY-MM-DD` shifted by `days` (local, DST/tz-safe via local getters). */
+export function shiftDateString(dateStr: string, days: number): string {
+  const d = new Date(dateStr + "T00:00:00")
+  d.setDate(d.getDate() + days)
+  const month = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${d.getFullYear()}-${month}-${day}`
+}
+
 /** Unix ms → local `YYYY-MM-DD` (matches the date strings used for todos/plans). */
 export function msToDateString(ms: number): string {
   const d = new Date(ms)

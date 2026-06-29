@@ -63,7 +63,9 @@ export const PlanItemSchema = z.object({
   description: z.string().nullable().default(null),
   date: DateStringSchema,
   startMinutes: z.number().int().min(0).max(MINUTES_IN_DAY),
-  durationMinutes: z.number().int().positive(),
+  // 0 is allowed: a freshly added block has start == end (zero duration). It's
+  // still drawn at the 30m minimum so it stays visible/clickable.
+  durationMinutes: z.number().int().nonnegative(),
   projectId: z.string().min(1),
   deletedAt: z.number().int().nonnegative().nullable().default(null),
 })
@@ -120,7 +122,7 @@ export const PlanItemInputSchema = z.object({
   description: z.string().trim().nullable().default(null),
   date: DateStringSchema,
   startMinutes: z.number().int().min(0).max(MINUTES_IN_DAY),
-  durationMinutes: z.number().int().positive().default(60),
+  durationMinutes: z.number().int().nonnegative().default(0),
   projectId: z.string().min(1).default(INBOX_ID),
 })
 export type PlanItemInput = z.input<typeof PlanItemInputSchema>

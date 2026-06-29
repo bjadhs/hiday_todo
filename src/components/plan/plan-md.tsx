@@ -4,7 +4,7 @@ import { useCallback, useMemo, useRef, useState } from "react"
 import { AlertTriangle, Check, Copy, RefreshCw, X } from "lucide-react"
 import { useTodoStore } from "@/lib/store"
 import { useMounted } from "@/lib/use-mounted"
-import { msToDateString } from "@/lib/utils"
+import { msToDateString, shiftDateString } from "@/lib/utils"
 import { cn } from "@/lib/utils"
 import type { PlanItem } from "@/lib/types"
 import {
@@ -38,7 +38,7 @@ export function PlanMd() {
   const updatePlanItem = useTodoStore((s) => s.updatePlanItem)
   const removePlanItem = useTodoStore((s) => s.removePlanItem)
 
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0])
+  const [selectedDate, setSelectedDate] = useState(() => msToDateString(new Date().getTime()))
   const [copied, setCopied] = useState(false)
   const [draftMarkdown, setDraftMarkdown] = useState<string | null>(null)
   const [syncState, setSyncState] = useState<SyncState>("synced")
@@ -48,7 +48,7 @@ export function PlanMd() {
   const [pendingSync, setPendingSync] = useState<{ blocks: ParsedPlanBlock[]; deletes: PlanItem[] } | null>(null)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const today = new Date().toISOString().split("T")[0]
+  const today = msToDateString(new Date().getTime())
   const isToday = selectedDate === today
 
   const plan = useMemo(
@@ -181,15 +181,11 @@ export function PlanMd() {
   }
 
   function goToPrev() {
-    const d = new Date(selectedDate + "T00:00:00")
-    d.setDate(d.getDate() - 1)
-    changeDate(d.toISOString().split("T")[0])
+    changeDate(shiftDateString(selectedDate, -1))
   }
 
   function goToNext() {
-    const d = new Date(selectedDate + "T00:00:00")
-    d.setDate(d.getDate() + 1)
-    changeDate(d.toISOString().split("T")[0])
+    changeDate(shiftDateString(selectedDate, 1))
   }
 
   async function handleCopy() {

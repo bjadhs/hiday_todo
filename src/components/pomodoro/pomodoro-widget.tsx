@@ -1,11 +1,14 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Play, Pause, Square, Timer, Coffee } from "lucide-react"
 import { useTodoStore, TIMER_CHIME_SECONDS } from "@/lib/store"
 import { useMounted } from "@/lib/use-mounted"
 import { ProjectIcon } from "@/lib/project-icons"
 import { cn, formatClock } from "@/lib/utils"
+
+/** Looping ticking sound played while a focus/timer session is running. */
+const TICK_SRC = "/sounds/bright-halo.mp3"
 
 /**
  * Sticky bottom-right focus widget. Owns the one-second interval that drives the
@@ -39,6 +42,30 @@ export function PomodoroWidget() {
     const id = setInterval(() => tickPomodoro(), 1000)
     return () => clearInterval(id)
   }, [running, tickPomodoro])
+
+  // Looping ticking sound for the whole app, tied to the same `running` flag.
+  // Created once; play()/pause() follows the session. play() is best-effort —
+  // autoplay may be blocked, but here it follows a user gesture (start/resume).
+  const tickAudioRef = useRef<HTMLAudioElement | null>(null)
+  useEffect(() => {
+    const audio = new Audio(TICK_SRC)
+    audio.loop = true
+    audio.preload = "auto"
+    tickAudioRef.current = audio
+    return () => {
+      audio.pause()
+      tickAudioRef.current = null
+    }
+  }, [])
+  useEffect(() => {
+    const audio = tickAudioRef.current
+    if (!audio) return
+    if (running) {
+      audio.play().catch(() => {})
+    } else {
+      audio.pause()
+    }
+  }, [running])
 
   if (!mounted || !pomodoro || !todo) return null
 

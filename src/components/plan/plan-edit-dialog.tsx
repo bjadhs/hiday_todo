@@ -4,7 +4,6 @@ import { useEffect, useState } from "react"
 import { X, Trash2 } from "lucide-react"
 import { useTodoStore } from "@/lib/store"
 import type { PlanItem } from "@/lib/types"
-import { ProjectIcon } from "@/lib/project-icons"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
@@ -52,7 +51,11 @@ export function PlanEditDialog({ item, onClose }: Props) {
   const [durationMinutes, setDurationMinutes] = useState(item.durationMinutes)
   const [error, setError] = useState<string | null>(null)
 
-  const endMinutes = Math.min(MINUTES_IN_DAY, startMinutes + durationMinutes)
+  // The block may run past midnight: the end clock time wraps and we flag the
+  // extra day. `start + duration` is the raw (possibly > 1440) end.
+  const rawEnd = startMinutes + durationMinutes
+  const endMinutes = rawEnd % MINUTES_IN_DAY
+  const crossesMidnight = rawEnd > MINUTES_IN_DAY
 
   // Close on Escape.
   useEffect(() => {
@@ -66,30 +69,29 @@ export function PlanEditDialog({ item, onClose }: Props) {
   function handleStartChange(value: string) {
     const mins = timeValueToMinutes(value)
     if (mins === null) return
-    // Keep the duration; shift the whole block. Clamp so it fits in the day.
-    setStartMinutes(Math.min(mins, MINUTES_IN_DAY - durationMinutes))
+    // Keep the duration and shift the whole block; it may now cross midnight.
+    setStartMinutes(mins)
     setError(null)
   }
 
   function handleEndChange(value: string) {
     const mins = timeValueToMinutes(value)
     if (mins === null) return
-    const next = mins - startMinutes
-    if (next <= 0) {
-      setError("End time must be after the start time")
-      return
-    }
+    // An end clock time at/after the start is same-day; before the start means
+    // it wraps into the next day. Equal start/end is a 0-minute block.
+    const next = mins >= startMinutes ? mins - startMinutes : mins + MINUTES_IN_DAY - startMinutes
     setDurationMinutes(next)
     setError(null)
   }
 
   function handleDurationChange(value: string) {
     const mins = Number(value)
-    if (!Number.isFinite(mins) || mins <= 0) {
-      setError("Duration must be a positive number of minutes")
+    if (!Number.isFinite(mins) || mins < 0) {
+      setError("Duration must be 0 or more minutes")
       return
     }
-    setDurationMinutes(Math.min(mins, MINUTES_IN_DAY - startMinutes))
+    // Cap at 24h so a block spills into at most the next day.
+    setDurationMinutes(Math.min(mins, MINUTES_IN_DAY))
     setError(null)
   }
 
@@ -99,8 +101,8 @@ export function PlanEditDialog({ item, onClose }: Props) {
       setError("Title is required")
       return
     }
-    if (durationMinutes <= 0) {
-      setError("End time must be after the start time")
+    if (durationMinutes < 0) {
+      setError("Duration can't be negative")
       return
     }
     updatePlanItem(item.id, {
@@ -187,7 +189,7 @@ export function PlanEditDialog({ item, onClose }: Props) {
             >
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>
-                  <ProjectIcon name={p.icon} size={12} /> {p.name}
+                  {p.name}
                 </option>
               ))}
             </select>
@@ -203,7 +205,10 @@ export function PlanEditDialog({ item, onClose }: Props) {
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-bold text-foreground-muted">End</label>
+              <label className="mb-1 flex items-center gap-1 text-xs font-bold text-foreground-muted">
+                End
+                {crossesMidnight && <span className="text-primary">+1 day</span>}
+              </label>
               <Input
                 type="time"
                 value={minutesToTimeValue(endMinutes)}

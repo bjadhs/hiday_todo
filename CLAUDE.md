@@ -166,6 +166,7 @@ Deleting a todo, focus session, or plan block is a **soft delete**, not a hard o
 
 ## Conventions & Gotchas
 
+- **Git commits:** do **not** add a `Co-Authored-By` trailer (or any AI attribution) to commit messages. Keep messages short.
 - Components that read the store are `"use client"`. Pages stay minimal and delegate to them.
 - **Hydration:** the store is client-only/persisted, so server render and first client render can disagree. Components that branch on persisted state guard with `useMounted()` (returns `null` until mounted) — follow that pattern when adding store-driven UI.
 - Avoid calling `Date.now()` during render; compute time-derived values in effects/handlers or memoize, to satisfy the React hooks/purity lint rules (same constraints as `myapp`).
