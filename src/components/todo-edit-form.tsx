@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { Timer, X } from "lucide-react"
 import { useTodoStore } from "@/lib/store"
 import { ProjectIcon } from "@/lib/project-icons"
@@ -36,9 +36,15 @@ export function TodoEditForm({ todo, onClose }: TodoEditFormProps) {
   const updateTodo = useTodoStore((s) => s.updateTodo)
   const projects = useTodoStore((s) => s.projects)
   const removeSession = useTodoStore((s) => s.removeSession)
-  // Most recent first.
-  const sessions = useTodoStore((s) =>
-    s.sessions.filter((x) => x.todoId === todo.id).sort((a, b) => b.startedAt - a.startedAt)
+  const allSessions = useTodoStore((s) => s.sessions)
+  // Most recent first. Derive outside the selector so we don't return a fresh
+  // array on every render (which trips useSyncExternalStore's snapshot check).
+  const sessions = useMemo(
+    () =>
+      allSessions
+        .filter((x) => x.todoId === todo.id)
+        .sort((a, b) => b.startedAt - a.startedAt),
+    [allSessions, todo.id]
   )
 
   const [formTitle, setFormTitle] = useState(todo.title)

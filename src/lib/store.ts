@@ -67,6 +67,10 @@ export type PomodoroSession = {
   phase: PomodoroPhase
   /** Wall-clock start of this run (Unix ms) — recorded into a FocusSession on end. */
   startedAt: number
+  /** Wall-clock start of the *current* focus block (Unix ms). Each completed
+      block is recorded as its own FocusSession spanning [blockStartedAt, now],
+      so completed blocks are durable even if the run is interrupted before stop. */
+  blockStartedAt: number
   /** Target length of a focus block, in seconds (pomodoro mode only). */
   focusSeconds: number
   /** Target length of a break, in seconds (pomodoro mode only). */
@@ -236,24 +240,50 @@ function unbankedFocus(p: PomodoroSession): number {
 }
 
 /**
- * Persist a finished run as a FocusSession (start/stop + focus duration) so it
- * shows in the todo editor and on the plan timeline. No-op for empty runs.
+ * Persist a single chunk of focus time as a FocusSession so it shows in the todo
+ * editor and on the plan timeline. No-op for empty chunks. Called per completed
+ * focus block (and for the partial block at stop) — not once at the end — so a
+ * completed block is durable even if the run is interrupted before stop.
  */
-function recordFocusSession(p: PomodoroSession) {
-  const focus = p.bankedSeconds + unbankedFocus(p)
-  if (focus <= 0) return
+function recordSession(
+  p: PomodoroSession,
+  startedAt: number,
+  endedAt: number,
+  durationSeconds: number
+) {
+  if (durationSeconds <= 0) return
   const todo = useTodoStore.getState().todos.find((t) => t.id === p.todoId)
   const session: FocusSession = {
     id: generateId(),
     todoId: p.todoId,
     projectId: todo?.projectId ?? INBOX_ID,
-    startedAt: p.startedAt,
-    endedAt: Date.now(),
-    durationSeconds: focus,
+    startedAt,
+    endedAt,
+    durationSeconds,
     deletedAt: null,
   }
   useTodoStore.setState((s) => ({ sessions: [...s.sessions, session] }))
   persist(createSessionAction(session))
+}
+
+/**
+ * End the in-flight run: record whatever focus time hasn't been recorded yet.
+ * In pomodoro mode the completed blocks were each recorded on completion, so only
+ * the current (partial) focus block remains. In timer mode the whole run is one
+ * session.
+ */
+function finalizeRun(p: PomodoroSession) {
+  const now = Date.now()
+  if (p.mode === "timer") {
+    const partial = unbankedFocus(p)
+    flushFocusToTodo(p.todoId, partial)
+    recordSession(p, p.startedAt, now, p.bankedSeconds + partial)
+    return
+  }
+  // Pomodoro: only an in-progress focus block is unrecorded (breaks aren't focus).
+  const partial = p.phase === "focus" ? p.elapsed : 0
+  flushFocusToTodo(p.todoId, partial)
+  recordSession(p, p.blockStartedAt, now, partial)
 }
 
 export const useTodoStore = create<TodoState & TodoActions>()((set, get) => ({
@@ -475,18 +505,17 @@ export const useTodoStore = create<TodoState & TodoActions>()((set, get) => ({
   },
 
   startPomodoro: ({ todoId, mode, focusMinutes, breakMinutes }) => {
-    // Replacing an in-flight run: record it and bank its remaining focus first.
+    // Replacing an in-flight run: finalize it (record any unrecorded focus) first.
     const current = get().pomodoro
-    if (current) {
-      recordFocusSession(current)
-      flushFocusToTodo(current.todoId, unbankedFocus(current))
-    }
+    if (current) finalizeRun(current)
+    const now = Date.now()
     set({
       pomodoro: {
         todoId,
         mode,
         phase: "focus",
-        startedAt: Date.now(),
+        startedAt: now,
+        blockStartedAt: now,
         // Timer mode is open-ended, so these targets are unused.
         focusSeconds: mode === "timer" ? 0 : Math.max(1, Math.round(focusMinutes * 60)),
         breakSeconds: mode === "timer" ? 0 : Math.max(1, Math.round(breakMinutes * 60)),
@@ -530,6 +559,9 @@ export const useTodoStore = create<TodoState & TodoActions>()((set, get) => ({
     }
 
     if (p.phase === "focus") {
+      // Record the finished block immediately so it's durable even if the run is
+      // interrupted before stop, then flush it to the todo's total.
+      recordSession(p, p.blockStartedAt, Date.now(), p.focusSeconds)
       flushFocusToTodo(p.todoId, p.focusSeconds)
       fireNotice("focus-complete", "Pomodoro complete 🍅", `${todoTitle} — time for a break`)
       set({
@@ -537,17 +569,15 @@ export const useTodoStore = create<TodoState & TodoActions>()((set, get) => ({
           ...p,
           phase: "break",
           elapsed: 0,
-          // Bank the finished block so the recorded session counts it.
-          bankedSeconds: p.bankedSeconds + p.focusSeconds,
           completedFocusBlocks: p.completedFocusBlocks + 1,
         },
       })
       return
     }
 
-    // Break finished — roll into the next focus block.
+    // Break finished — roll into the next focus block (its own session span).
     fireNotice("break-complete", "Break over ☕", `${todoTitle} — back to focus`)
-    set({ pomodoro: { ...p, phase: "focus", elapsed: 0 } })
+    set({ pomodoro: { ...p, phase: "focus", elapsed: 0, blockStartedAt: Date.now() } })
   },
 
   togglePomodoro: () => {
@@ -559,9 +589,8 @@ export const useTodoStore = create<TodoState & TodoActions>()((set, get) => ({
   stopPomodoro: () => {
     const p = get().pomodoro
     if (!p) return
-    // Record the run, then bank the partial focus block (break time isn't focus).
-    recordFocusSession(p)
-    flushFocusToTodo(p.todoId, unbankedFocus(p))
+    // Completed blocks were already recorded; finalize records the partial block.
+    finalizeRun(p)
     set({ pomodoro: null })
   },
 
