@@ -16,7 +16,6 @@ import {
 } from "@dnd-kit/core"
 import {
   SortableContext,
-  rectSortingStrategy,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { Plus } from "lucide-react"
@@ -53,7 +52,11 @@ export function GroupedTodoList({ groups, filterMode, viewMode, gridClass, proje
   )
 
   const sectionKeys = useMemo(() => new Set(groups.map((g) => g.key)), [groups])
-  const strategy = viewMode === "list" ? verticalListSortingStrategy : rectSortingStrategy
+
+  // In grid views each group is rendered as its own column (the groups wrap
+  // into the grid); in list view groups are stacked sections. Either way the
+  // cards inside a single group/column flow vertically.
+  const strategy = verticalListSortingStrategy
 
   const activeTodo = useMemo(() => {
     if (!activeId) return null
@@ -104,16 +107,17 @@ export function GroupedTodoList({ groups, filterMode, viewMode, gridClass, proje
       onDragEnd={handleDragEnd}
       onDragCancel={() => setActiveId(null)}
     >
-      {groups.map((group) => (
-        <Section
-          key={group.key}
-          group={group}
-          gridClass={gridClass}
-          strategy={strategy}
-          filterMode={filterMode}
-          projectId={projectId}
-        />
-      ))}
+      <div className={cn(viewMode === "list" ? "space-y-4" : gridClass)}>
+        {groups.map((group) => (
+          <Section
+            key={group.key}
+            group={group}
+            strategy={strategy}
+            filterMode={filterMode}
+            projectId={projectId}
+          />
+        ))}
+      </div>
 
       <DragOverlay>
         {activeTodo ? <TodoItem todo={activeTodo} isOverlay /> : null}
@@ -124,13 +128,11 @@ export function GroupedTodoList({ groups, filterMode, viewMode, gridClass, proje
 
 function Section({
   group,
-  gridClass,
   strategy,
   filterMode,
   projectId,
 }: {
   group: TodoGroup
-  gridClass: string
   strategy: typeof verticalListSortingStrategy
   filterMode: FilterMode
   projectId: string
@@ -143,7 +145,7 @@ function Section({
     <section
       ref={setNodeRef}
       className={cn(
-        "rounded-xl px-2 py-2 transition-colors",
+        "flex h-full flex-col rounded-xl px-2 py-2 transition-colors",
         isOver && "bg-primary/5 ring-2 ring-primary/40"
       )}
     >
@@ -153,27 +155,30 @@ function Section({
       </h2>
 
       <SortableContext items={group.todos.map((t) => itemId(group.key, t.id))} strategy={strategy}>
-        {group.todos.length > 0 ? (
-          <div className={gridClass}>
+        {group.todos.length > 0 && (
+          <div className="space-y-2">
             {group.todos.map((todo) => (
               <TodoItem key={todo.id} todo={todo} sortableId={itemId(group.key, todo.id)} />
             ))}
           </div>
-        ) : adding ? (
+        )}
+        {adding ? (
           <InlineAddTodo
             onAdd={(title) =>
               addTodo({ title, projectId, ...newTodoAttrsForGroup(filterMode, group.key) })
             }
             onClose={() => setAdding(false)}
+            placeholder={`Add to ${group.label}...`}
           />
         ) : (
           <button
             type="button"
             onClick={() => setAdding(true)}
-            className="flex w-full items-center justify-center rounded-xl border-2 border-dashed border-border py-6 text-foreground-muted/50 transition-colors hover:border-primary hover:text-primary"
+            className="flex w-full items-center gap-2 rounded-lg border-2 border-dashed border-border-strong p-2 text-sm text-foreground-muted transition-colors hover:border-primary hover:text-primary"
             title={`Add to ${group.label}`}
           >
-            <Plus size={20} />
+            <Plus size={16} />
+            Add a todo to {group.label}
           </button>
         )}
       </SortableContext>

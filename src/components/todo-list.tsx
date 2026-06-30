@@ -65,7 +65,12 @@ export function TodoList({ projectId: rawProjectId }: { projectId?: string }) {
     ? projectTodos.length
     : groups.reduce((sum, g) => sum + g.todos.length, 0)
   const newTodoProjectId = isAll ? "__inbox__" : selectedProjectId
-  const gridClass = viewMode === "grid-2" ? "grid grid-cols-1 sm:grid-cols-2 gap-2" : viewMode === "grid-3" ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2" : "space-y-2"
+  const gridClass =
+    viewMode === "grid-2"
+      ? "grid grid-cols-1 gap-4 sm:grid-cols-2"
+      : viewMode === "grid-3"
+        ? "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+        : "space-y-4"
 
   return (
     <div className="flex h-full flex-col">
@@ -120,7 +125,7 @@ export function TodoList({ projectId: rawProjectId }: { projectId?: string }) {
         <div className="flex min-h-0 flex-1 flex-col gap-3 p-3 sm:gap-4 sm:p-6">
           {addOpen && (
             <div className="mx-auto w-full max-w-2xl">
-              <AddTodo />
+              <AddTodo defaultProjectId={newTodoProjectId} />
             </div>
           )}
           <div className="min-h-0 flex-1">
@@ -130,7 +135,7 @@ export function TodoList({ projectId: rawProjectId }: { projectId?: string }) {
       ) : (
       <div className="flex-1 overflow-y-auto p-3 sm:p-6">
         <div className={cn("mx-auto space-y-4", viewMode === "list" ? "max-w-2xl" : "max-w-5xl")}>
-          <AddTodo />
+          <AddTodo defaultProjectId={newTodoProjectId} />
 
           {totalTodos === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">

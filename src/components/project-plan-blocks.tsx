@@ -5,6 +5,7 @@ import { CalendarClock, ChevronDown } from "lucide-react"
 import { useTodoStore } from "@/lib/store"
 import { PlanEditDialog } from "@/components/plan/plan-edit-dialog"
 import { ProjectIcon } from "@/lib/project-icons"
+import { groupPlanItems } from "@/lib/grouping"
 import { cn, formatDate, formatDurationMinutes } from "@/lib/utils"
 import type { PlanItem } from "@/lib/types"
 
@@ -33,10 +34,16 @@ function filterByProject(items: PlanItem[], projectId: string) {
  * below its todos. Plan blocks are a separate entity (`plan_items`) but carry a
  * `projectId`, so this surfaces them on the project page. Clicking a row opens
  * the shared `PlanEditDialog`, which writes through the store like the timeline.
+ *
+ * Blocks are grouped by the active filter (date / day / tag) — the same one the
+ * todos use — and laid out in the same grid column layout, so the sections line
+ * up with the todo columns above.
  */
 export function ProjectPlanBlocks({ projectId }: { projectId: string }) {
   const planItems = useTodoStore((s) => s.planItems)
   const projects = useTodoStore((s) => s.projects)
+  const filterMode = useTodoStore((s) => s.filterMode)
+  const viewMode = useTodoStore((s) => s.viewMode)
   const [collapsed, setCollapsed] = useState(false)
   const [editingItem, setEditingItem] = useState<PlanItem | null>(null)
 
@@ -48,7 +55,19 @@ export function ProjectPlanBlocks({ projectId }: { projectId: string }) {
     )
   }, [planItems, projectId])
 
+  const groups = useMemo(
+    () => groupPlanItems(blocks, filterMode).filter((g) => g.items.length > 0),
+    [blocks, filterMode]
+  )
+
   if (blocks.length === 0) return null
+
+  const columnsClass =
+    viewMode === "grid-2"
+      ? "grid grid-cols-1 gap-4 sm:grid-cols-2"
+      : viewMode === "grid-3"
+        ? "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+        : "space-y-4"
 
   return (
     <section className="px-2">
@@ -67,35 +86,48 @@ export function ProjectPlanBlocks({ projectId }: { projectId: string }) {
       </button>
 
       {!collapsed && (
-        <div className="space-y-2">
-          {blocks.map((block) => {
-            const project = projects.find((p) => p.id === block.projectId)
-            const end = block.startMinutes + block.durationMinutes
-            return (
-              <button
-                key={block.id}
-                type="button"
-                onClick={() => setEditingItem(block)}
-                className="card-interactive flex w-full items-center gap-3 rounded-lg border-2 border-border-strong bg-surface px-3 py-2 text-left"
-              >
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-sm font-medium">{block.title}</span>
-                  <span className="text-xs text-foreground-muted">
-                    {formatDate(block.date)} · {minutesToClock(block.startMinutes)} – {minutesToClock(end)}
-                  </span>
-                </div>
-                {isAll && project && (
-                  <span className="flex shrink-0 items-center gap-1 text-xs text-foreground-muted">
-                    <ProjectIcon name={project.icon} size={12} />
-                    <span className="truncate">{project.name}</span>
-                  </span>
-                )}
-                <span className="shrink-0 rounded-md border border-border-strong bg-background-elevated px-2 py-0.5 text-xs font-bold text-foreground-muted">
-                  {formatDurationMinutes(block.durationMinutes)}
+        <div className={columnsClass}>
+          {groups.map((group) => (
+            <div key={group.key} className="min-w-0">
+              <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-foreground-muted">
+                {group.label}
+                <span className="ml-2 font-normal text-foreground-muted/60">
+                  {group.items.length}
                 </span>
-              </button>
-            )
-          })}
+              </h3>
+              <div className="space-y-2">
+                {group.items.map((block) => {
+                  const project = projects.find((p) => p.id === block.projectId)
+                  const end = block.startMinutes + block.durationMinutes
+                  return (
+                    <button
+                      key={block.id}
+                      type="button"
+                      onClick={() => setEditingItem(block)}
+                      className="card-interactive flex w-full items-center gap-3 rounded-lg border-2 border-border-strong bg-surface px-3 py-2 text-left"
+                    >
+                      <div className="flex min-w-0 flex-1 flex-col">
+                        <span className="truncate text-sm font-medium">{block.title}</span>
+                        <span className="text-xs text-foreground-muted">
+                          {formatDate(block.date)} · {minutesToClock(block.startMinutes)} –{" "}
+                          {minutesToClock(end)}
+                        </span>
+                      </div>
+                      {isAll && project && (
+                        <span className="flex shrink-0 items-center gap-1 text-xs text-foreground-muted">
+                          <ProjectIcon name={project.icon} size={12} />
+                          <span className="truncate">{project.name}</span>
+                        </span>
+                      )}
+                      <span className="shrink-0 rounded-md border border-border-strong bg-background-elevated px-2 py-0.5 text-xs font-bold text-foreground-muted">
+                        {formatDurationMinutes(block.durationMinutes)}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 

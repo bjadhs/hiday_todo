@@ -1,11 +1,20 @@
-import type { DayPeriod, FilterMode, Todo } from "./types"
+import type { DayPeriod, FilterMode, Todo, PlanItem } from "./types"
 
 export type TodoGroup = { key: string; label: string; todos: Todo[] }
+export type PlanGroup = { key: string; label: string; items: PlanItem[] }
 
 const DAY_LABELS: Record<DayPeriod, string> = {
   morning: "☀️ Morning",
   day: "🌤️ Day",
   evening: "🌙 Evening",
+}
+
+/** Map a minutes-from-midnight value to a day period (used for plan blocks,
+ * which carry a time but not a `dayPeriod` field like todos do). */
+function dayPeriodForMinutes(m: number): DayPeriod {
+  if (m < 12 * 60) return "morning"
+  if (m < 18 * 60) return "day"
+  return "evening"
 }
 
 // Local `YYYY-MM-DD` (not UTC). `toISOString()` would shift the date by the
@@ -106,6 +115,56 @@ export function newTodoAttrsForGroup(filterMode: FilterMode, key: string): Parti
     deletedAt: null,
   }
   return dropUpdateForGroup(filterMode, key, blank) ?? {}
+}
+
+/**
+ * Group plan blocks under the active filter. Plan blocks always carry a `date`
+ * and a `startMinutes` (and optional `tags`), so:
+ *  - date → Today / Tomorrow / Future / Past (no "No Date" — date is required)
+ *  - day  → Morning / Day / Evening, derived from `startMinutes`
+ *  - tag  → one group per tag (plus "Untagged")
+ */
+export function groupPlanItems(items: PlanItem[], filterMode: FilterMode): PlanGroup[] {
+  if (filterMode === "date") {
+    const { today, tomorrow } = relativeDates()
+    const groups: PlanGroup[] = [
+      { key: "today", label: "Today", items: items.filter((p) => p.date === today) },
+      { key: "tomorrow", label: "Tomorrow", items: items.filter((p) => p.date === tomorrow) },
+      { key: "future", label: "Future", items: items.filter((p) => p.date > tomorrow) },
+    ]
+    const past = items.filter((p) => p.date < today)
+    if (past.length) groups.push({ key: "past", label: "Past", items: past })
+    return groups
+  }
+
+  if (filterMode === "day") {
+    const order: DayPeriod[] = ["morning", "day", "evening"]
+    return order.map((p) => ({
+      key: p,
+      label: DAY_LABELS[p],
+      items: items.filter((x) => dayPeriodForMinutes(x.startMinutes) === p),
+    }))
+  }
+
+  // tag
+  const tagMap = new Map<string, PlanItem[]>()
+  const untagged: PlanItem[] = []
+  for (const p of items) {
+    if (p.tags.length === 0) {
+      untagged.push(p)
+    } else {
+      for (const tag of p.tags) {
+        if (!tagMap.has(tag)) tagMap.set(tag, [])
+        tagMap.get(tag)!.push(p)
+      }
+    }
+  }
+  const groups: PlanGroup[] = []
+  for (const [tag, list] of tagMap) {
+    groups.push({ key: `tag:${tag}`, label: tag, items: list })
+  }
+  groups.push({ key: "untagged", label: "Untagged", items: untagged })
+  return groups
 }
 
 export function groupTodos(todos: Todo[], filterMode: FilterMode): TodoGroup[] {

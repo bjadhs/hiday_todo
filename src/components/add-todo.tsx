@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Plus } from "lucide-react"
 import { useTodoStore } from "@/lib/store"
 import { firstError } from "@/lib/schemas"
@@ -21,17 +21,24 @@ const KANBAN_STATUSES: { value: KanbanStatus; label: string }[] = [
   { value: "done", label: "Done" },
 ]
 
-export function AddTodo() {
+export function AddTodo({ defaultProjectId = "__inbox__" }: { defaultProjectId?: string }) {
   const { projects, addTodo } = useTodoStore()
   const isOpen = useTodoStore((s) => s.addOpen)
   const setIsOpen = useTodoStore((s) => s.setAddOpen)
   const [title, setTitle] = useState("")
-  const [projectId, setProjectId] = useState("__inbox__")
+  const [projectId, setProjectId] = useState(defaultProjectId)
   const [kanbanStatus, setKanbanStatus] = useState<KanbanStatus>("next")
   const [dayPeriod, setDayPeriod] = useState<DayPeriod | null>(null)
   const [date, setDate] = useState("")
   const [tagInput, setTagInput] = useState("")
   const [error, setError] = useState<string | null>(null)
+
+  // Keep the preselected project in sync when the user navigates between
+  // projects (e.g. All → Work). Only re-syncs while the form is closed so an
+  // in-progress edit isn't clobbered.
+  useEffect(() => {
+    if (!isOpen) setProjectId(defaultProjectId)
+  }, [defaultProjectId, isOpen])
 
   const projectOptions = projects.filter((p) => p.id !== "__all__")
 
@@ -58,7 +65,7 @@ export function AddTodo() {
     setDayPeriod(null)
     setDate("")
     setKanbanStatus("next")
-    setProjectId("__inbox__")
+    setProjectId(defaultProjectId)
     setIsOpen(false)
   }
 
