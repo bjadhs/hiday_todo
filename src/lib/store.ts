@@ -10,6 +10,8 @@ import {
   type ActionResult,
 } from "./schemas"
 import { getAllData } from "@/actions/data"
+import { extractTags, mergeTags } from "./tags"
+import { setSetting as setSettingAction } from "@/actions/settings"
 import { createProject as createProjectAction, updateProject as updateProjectAction, removeProject as removeProjectAction } from "@/actions/projects"
 import {
   createTodo as createTodoAction,
@@ -37,6 +39,9 @@ import {
 } from "@/actions/sessions"
 
 const INBOX_ID = "__inbox__"
+
+/** Settings key for the project a new plan block defaults to. */
+const PLAN_DEFAULT_PROJECT_KEY = "planDefaultProjectId"
 
 const DEFAULT_INBOX: Project = { id: INBOX_ID, name: "Inbox", color: "#6D28D9", icon: "📥", sortOrder: 0 }
 
@@ -105,6 +110,8 @@ export type TodoState = {
   selectedProjectId: string
   filterMode: FilterMode
   viewMode: ViewMode
+  /** Project a new plan block defaults to (configurable in Settings). */
+  planDefaultProjectId: string
   planItems: PlanItem[]
   /** Recorded focus runs (one per completed timer/pomodoro run). */
   sessions: FocusSession[]
@@ -135,7 +142,10 @@ export type TodoActions = {
     archivedTodos: Todo[]
     archivedPlanItems: PlanItem[]
     archivedSessions: FocusSession[]
+    settings: Record<string, string>
   }) => void
+  /** Set the default project for new plan blocks; writes through to settings. */
+  setPlanDefaultProject: (id: string) => void
   addProject: (name: string, color: string, icon: string, sortOrder?: number) => ActionResult
   updateProject: (id: string, updates: Partial<Project>) => void
   removeProject: (id: string) => void
@@ -154,7 +164,7 @@ export type TodoActions = {
   setViewMode: (mode: ViewMode) => void
   setAddOpen: (open: boolean) => void
   setSidebarOpen: (open: boolean) => void
-  addPlanItem: (data: { title: string; description?: string | null; date: string; startMinutes: number; durationMinutes?: number; projectId?: string }) => ActionResult
+  addPlanItem: (data: { title: string; description?: string | null; date: string; startMinutes: number; durationMinutes?: number; projectId?: string; tags?: string[] }) => ActionResult
   updatePlanItem: (id: string, updates: Partial<PlanItem>) => void
   /** Soft-delete a plan item into the Archived trash. */
   removePlanItem: (id: string) => void
@@ -294,6 +304,7 @@ export const useTodoStore = create<TodoState & TodoActions>()((set, get) => ({
   selectedProjectId: INBOX_ID,
   filterMode: "date",
   viewMode: "kanban",
+  planDefaultProjectId: INBOX_ID,
   planItems: [],
   sessions: [],
   archivedTodos: [],
@@ -315,8 +326,14 @@ export const useTodoStore = create<TodoState & TodoActions>()((set, get) => ({
       archivedTodos: data.archivedTodos,
       archivedPlanItems: data.archivedPlanItems,
       archivedSessions: data.archivedSessions,
+      planDefaultProjectId: data.settings[PLAN_DEFAULT_PROJECT_KEY] ?? INBOX_ID,
       hydrated: true,
     }),
+
+  setPlanDefaultProject: (id) => {
+    set({ planDefaultProjectId: id })
+    persist(setSettingAction(PLAN_DEFAULT_PROJECT_KEY, id))
+  },
 
   addProject: (name, color, icon, sortOrder) => {
     const parsed = ProjectInputSchema.safeParse({ name, color, icon })
@@ -350,7 +367,10 @@ export const useTodoStore = create<TodoState & TodoActions>()((set, get) => ({
   selectProject: (id) => set({ selectedProjectId: id }),
 
   addTodo: (data) => {
-    const parsed = TodoInputSchema.safeParse(data)
+    // Pull #/@ tokens out of the title into tags before validating.
+    const { title, tags: titleTags } = extractTags(data.title)
+    const merged = mergeTags(data.tags ?? [], titleTags)
+    const parsed = TodoInputSchema.safeParse({ ...data, title, tags: merged })
     if (!parsed.success) return actionError(parsed.error)
     const todo: Todo = { id: generateId(), completed: false, createdAt: Date.now(), focusSeconds: 0, deletedAt: null, ...parsed.data }
     set((s) => ({ todos: [...s.todos, todo] }))
@@ -359,10 +379,19 @@ export const useTodoStore = create<TodoState & TodoActions>()((set, get) => ({
   },
 
   updateTodo: (id, updates) => {
+    // Renaming a todo re-parses #/@ tokens: the cleaned title replaces the old
+    // one and any new tags are unioned in (existing tags are kept).
+    let finalUpdates = updates
+    if (typeof updates.title === "string") {
+      const { title, tags: titleTags } = extractTags(updates.title)
+      const current = get().todos.find((t) => t.id === id)
+      const baseTags = updates.tags ?? current?.tags ?? []
+      finalUpdates = { ...updates, title, tags: mergeTags(baseTags, titleTags) }
+    }
     set((s) => ({
-      todos: s.todos.map((t) => (t.id === id ? { ...t, ...updates } : t)),
+      todos: s.todos.map((t) => (t.id === id ? { ...t, ...finalUpdates } : t)),
     }))
-    persist(updateTodoAction(id, updates))
+    persist(updateTodoAction(id, finalUpdates))
   },
 
   removeTodo: (id) => {
@@ -419,15 +448,23 @@ export const useTodoStore = create<TodoState & TodoActions>()((set, get) => ({
   },
 
   toggleTodo: (id) => {
-    let nextCompleted: boolean | null = null
+    let update: { completed: boolean; kanbanStatus: KanbanStatus } | null = null
     set((s) => ({
       todos: s.todos.map((t) => {
         if (t.id !== id) return t
-        nextCompleted = !t.completed
-        return { ...t, completed: nextCompleted }
+        const completed = !t.completed
+        // Checking a todo done drops it into the Done column; unchecking from
+        // Done sends it back to Next so it leaves the board's Done lane.
+        const kanbanStatus: KanbanStatus = completed
+          ? "done"
+          : t.kanbanStatus === "done"
+            ? "next"
+            : t.kanbanStatus
+        update = { completed, kanbanStatus }
+        return { ...t, completed, kanbanStatus }
       }),
     }))
-    if (nextCompleted !== null) persist(updateTodoAction(id, { completed: nextCompleted }))
+    if (update !== null) persist(updateTodoAction(id, update))
   },
 
   moveTodo: (id, status, overId) => {
@@ -455,7 +492,10 @@ export const useTodoStore = create<TodoState & TodoActions>()((set, get) => ({
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
 
   addPlanItem: (data) => {
-    const parsed = PlanItemInputSchema.safeParse(data)
+    // Pull #/@ tokens out of the title into tags (mirrors addTodo).
+    const { title, tags: titleTags } = extractTags(data.title)
+    const merged = mergeTags(data.tags ?? [], titleTags)
+    const parsed = PlanItemInputSchema.safeParse({ ...data, title, tags: merged })
     if (!parsed.success) return actionError(parsed.error)
     const item: PlanItem = { id: generateId(), deletedAt: null, ...parsed.data }
     set((s) => ({ planItems: [...s.planItems, item] }))
@@ -464,10 +504,18 @@ export const useTodoStore = create<TodoState & TodoActions>()((set, get) => ({
   },
 
   updatePlanItem: (id, updates) => {
+    // Re-parse #/@ tokens when the title changes (mirrors updateTodo).
+    let finalUpdates = updates
+    if (typeof updates.title === "string") {
+      const { title, tags: titleTags } = extractTags(updates.title)
+      const current = get().planItems.find((p) => p.id === id)
+      const baseTags = updates.tags ?? current?.tags ?? []
+      finalUpdates = { ...updates, title, tags: mergeTags(baseTags, titleTags) }
+    }
     set((s) => ({
-      planItems: s.planItems.map((p) => (p.id === id ? { ...p, ...updates } : p)),
+      planItems: s.planItems.map((p) => (p.id === id ? { ...p, ...finalUpdates } : p)),
     }))
-    persist(updatePlanItemAction(id, updates))
+    persist(updatePlanItemAction(id, finalUpdates))
   },
 
   removePlanItem: (id) => {
@@ -509,6 +557,18 @@ export const useTodoStore = create<TodoState & TodoActions>()((set, get) => ({
     const current = get().pomodoro
     if (current) finalizeRun(current)
     const now = Date.now()
+    // Starting a timer on a todo means it's being worked on now — move it into
+    // the Doing column (and clear any completed flag) so the board reflects that.
+    let movedToDoing = false
+    set((s) => ({
+      todos: s.todos.map((t) => {
+        if (t.id !== todoId || (t.kanbanStatus === "doing" && !t.completed)) return t
+        movedToDoing = true
+        return { ...t, kanbanStatus: "doing", completed: false }
+      }),
+    }))
+    if (movedToDoing)
+      persist(updateTodoAction(todoId, { kanbanStatus: "doing", completed: false }))
     set({
       pomodoro: {
         todoId,

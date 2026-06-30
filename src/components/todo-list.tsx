@@ -5,6 +5,7 @@ import { Columns3, CalendarDays, Clock, Tags, LayoutList, Grid2x2, Grid3x3 } fro
 import { useTodoStore } from "@/lib/store"
 import { AddTodo } from "@/components/add-todo"
 import { GroupedTodoList } from "@/components/grouped-todo-list"
+import { ProjectPlanBlocks } from "@/components/project-plan-blocks"
 import { KanbanBoard } from "@/components/kanban/kanban-board"
 import { cn } from "@/lib/utils"
 import { groupTodos } from "@/lib/grouping"
@@ -150,6 +151,8 @@ export function TodoList({ projectId: rawProjectId }: { projectId?: string }) {
               projectId={newTodoProjectId}
             />
           )}
+
+          <ProjectPlanBlocks projectId={selectedProjectId} />
         </div>
       </div>
       )}

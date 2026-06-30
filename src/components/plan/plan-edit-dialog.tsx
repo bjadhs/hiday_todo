@@ -160,6 +160,21 @@ export function PlanEditDialog({ item, onClose }: Props) {
               }}
               placeholder="What's the plan?"
             />
+            <p className="mt-1 text-[10px] text-foreground-muted">
+              Tip: add #tag or @tag in the title to tag this block.
+            </p>
+            {item.tags.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {item.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded-md border border-border-strong bg-surface px-1.5 py-0.5 text-[10px] font-bold text-foreground-muted"
+                  >
+                    #{tag}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           <div>

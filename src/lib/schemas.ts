@@ -67,6 +67,9 @@ export const PlanItemSchema = z.object({
   // still drawn at the 30m minimum so it stays visible/clickable.
   durationMinutes: z.number().int().nonnegative(),
   projectId: z.string().min(1),
+  // Tags parsed from #/@ tokens in the title. Defaults to [] so rows/blobs
+  // created before this field existed still parse.
+  tags: z.array(z.string()).default([]),
   deletedAt: z.number().int().nonnegative().nullable().default(null),
 })
 
@@ -124,6 +127,7 @@ export const PlanItemInputSchema = z.object({
   startMinutes: z.number().int().min(0).max(MINUTES_IN_DAY),
   durationMinutes: z.number().int().nonnegative().default(0),
   projectId: z.string().min(1).default(INBOX_ID),
+  tags: z.array(z.string().trim().min(1)).default([]),
 })
 export type PlanItemInput = z.input<typeof PlanItemInputSchema>
 

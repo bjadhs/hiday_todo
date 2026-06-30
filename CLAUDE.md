@@ -70,7 +70,9 @@ todo/src/
 │   │   ├── [projectId]/page.tsx# "/:projectId" (and "/inbox") → <TodoList />
 │   │   ├── plan/page.tsx       # "/plan" → <PlanTimeline />
 │   │   ├── plan-md/page.tsx    # "/plan-md" → <PlanMd /> (daily markdown)
-│   │   └── archived/page.tsx   # "/archived" → <ArchivedView /> (soft-delete trash)
+│   │   ├── archived/page.tsx   # "/archived" → <ArchivedView /> (soft-delete trash)
+│   │   ├── settings/page.tsx   # "/settings" → <SettingsView /> (app preferences)
+│   │   └── tags/page.tsx       # "/tags" → <TagsView /> (todos grouped by tag)
 │   ├── layout.tsx              # Root layout, <Providers>, metadata
 │   ├── providers.tsx           # next-themes ThemeProvider
 │   └── globals.css             # Tailwind v4 theme + brutalist utilities
@@ -80,6 +82,8 @@ todo/src/
 │   ├── ui/                     # Base primitives: badge, button, input
 │   ├── add-todo.tsx            # Expanding "add a todo" form (list/grid views)
 │   ├── archived-view.tsx       # Archived trash: restore / permanently delete
+│   ├── settings-view.tsx       # App preferences (default plan project)
+│   ├── tags-view.tsx           # All todos grouped by tag (/tags)
 │   ├── sidebar.tsx             # Nav + project CRUD + theme toggle
 │   ├── theme-toggle.tsx
 │   ├── todo-item.tsx           # Todo row for list/grid views
@@ -87,6 +91,7 @@ todo/src/
 └── lib/
     ├── archive.ts              # ARCHIVE_RETENTION_MS (3-day trash window)
     ├── store.ts                # Zustand store (state + actions + persist)
+    ├── tags.ts                 # extractTags() — pull #/@ tokens out of titles
     ├── types.ts                # Shared types
     ├── use-mounted.ts          # Hydration-safe mount guard
     └── utils.ts                # cn(), formatDate()
@@ -101,8 +106,9 @@ todo/src/
 Key slices:
 - `projects: Project[]` — always includes a non-deletable **Inbox** (`__inbox__`). New project colors/icons cycle through preset lists in `sidebar.tsx`.
 - `todos: Todo[]` — flat array; ordering is array position.
-- `planItems: PlanItem[]` — time blocks for the `/plan` timeline.
+- `planItems: PlanItem[]` — time blocks for the `/plan` timeline. Each carries a `tags` array (parsed from `#`/`@` tokens in the title; migration `0005`).
 - `filterMode` / `viewMode` — persisted UI state for the todo views (see below).
+- `planDefaultProjectId` — the project a new plan block defaults to. Hydrated from the `settings` table (`getAllData`) and written through by `setPlanDefaultProject` → `setSetting` (`src/actions/settings.ts`). Configurable in **Settings**.
 
 Important behaviors:
 - **Special project ids:** `__all__` (the "All" view, not a real project) and `__inbox__`. `filterByProject` in `todo-list.tsx` treats todos with no `projectId` as Inbox.
@@ -156,6 +162,28 @@ Deleting a todo, focus session, or plan block is a **soft delete**, not a hard o
 - **Server actions** (`src/actions/{todos,sessions,plan-items}.ts`): `archive* / restore* / delete*Forever` (+ `*SessionsForTodo*` cascades). `ARCHIVE_RETENTION_MS` lives in `src/lib/archive.ts` (kept out of the `"use server"` `data.ts`, which may only export async fns).
 - **Hydration & purge:** `getAllData` first hard-deletes anything older than `ARCHIVE_RETENTION_MS` (3 days), then returns active rows (`deleted_at IS NULL`) plus `archived{Todos,PlanItems,Sessions}` (`IS NOT NULL`).
 - **View:** `archived-view.tsx` lists the three kinds with "deleted Xm ago / purges in Y", an **Undo** (restore) and a permanent-delete button each. Restore returns plan items/sessions to their exact slot (date + time); a todo returns to its project/column but at the **end** of that column (todos carry no position in the `Todo` type).
+
+## Inline tags (`#tag` / `@tag`)
+
+`extractTags(raw)` in `src/lib/tags.ts` pulls `#tag` and `@tag` tokens out of a title: the token is **stripped** from the visible text and added to the item's `tags` array (e.g. "Buy milk #grocery" → title "Buy milk", tag "grocery"). A token must start the string or follow whitespace; the body is `[A-Za-z0-9][A-Za-z0-9_-]*`. De-dupe is case-insensitive.
+
+Parsing happens in the **store actions**, so every entry point benefits (header form, kanban/section quick-adds, plan timeline, plan-md):
+- `addTodo` / `addPlanItem` — parse the title, union the result with any explicitly-passed tags.
+- `updateTodo` / `updatePlanItem` — when `updates.title` is present, re-parse: the cleaned title replaces the old one and new tags are **unioned** into the existing tags (existing tags are never dropped). Idempotent, since stored titles are already clean.
+
+## Tags view (`/tags`, "Tags" in the sidebar)
+
+`tags-view.tsx` shows **every todo grouped by tag** across all projects, reusing `groupTodos(todos, "tag")` + `<GroupedTodoList>` (so drag-to-retag works). Todos-only — plan blocks are not shown here; a plan block's tags live on the block (visible in `plan-edit-dialog.tsx`).
+
+## Settings (`/settings`, "Settings" in the sidebar)
+
+`settings-view.tsx` edits app preferences, currently just the **default plan project** (`planDefaultProjectId`). Persisted in the `settings` key/value table via `setSetting`; read back by `getAllData`. The `/plan` timeline uses this value for new blocks (was previously hard-coded to Inbox).
+
+## Sidebar (`src/components/sidebar.tsx`)
+
+- The **All** row carries an inline **+** button (icon only) that opens the new-project dialog.
+- Top nav: All, Inbox, then user projects (each with hover edit/delete).
+- Bottom section: **Plan** and **Plan MD** links, then a 3-up icon row — **Settings · Archived · Tags**.
 
 ## Styling
 

@@ -53,7 +53,19 @@ export const planItems = pgTable("plan_items", {
   startMinutes: integer("start_minutes").notNull(),
   durationMinutes: integer("duration_minutes").notNull(),
   projectId: text("project_id").notNull(),
+  // Tags parsed from #/@ tokens in the block title (mirrors `todos.tags`).
+  tags: text("tags").array().notNull().default([]),
   deletedAt: bigint("deleted_at", { mode: "number" }),
+})
+
+/**
+ * Key/value app preferences (single shared user, so no scoping). Currently holds
+ * `planDefaultProjectId` — the project a new plan block defaults to. Read in bulk
+ * by `getAllData` and written through one key at a time by `setSetting`.
+ */
+export const settings = pgTable("settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
 })
 
 /**

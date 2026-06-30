@@ -3,9 +3,8 @@
 import { useState } from "react"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
-import { Plus, Pencil, Trash2, ListTodo, InboxIcon, CalendarClock, FileText, Archive, X } from "lucide-react"
+import { Plus, Pencil, Trash2, ListTodo, InboxIcon, CalendarClock, FileText, Archive, Settings, Tags, X } from "lucide-react"
 import { useTodoStore } from "@/lib/store"
-import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { Project } from "@/lib/types"
 import { ProjectDialog } from "@/components/project-dialog"
@@ -22,6 +21,13 @@ export function Sidebar() {
   const isPlan = pathname === "/plan"
   const isPlanMd = pathname === "/plan-md"
   const isArchived = pathname === "/archived"
+
+  // Bottom utility row — three equal-width menu items.
+  const bottomNav = [
+    { href: "/settings", label: "Settings", icon: Settings, active: pathname === "/settings" },
+    { href: "/archived", label: "Archived", icon: Archive, active: isArchived },
+    { href: "/tags", label: "Tags", icon: Tags, active: pathname === "/tags" },
+  ]
 
   // Dismiss the drawer after navigating on mobile (no-op on desktop).
   const closeDrawer = () => setSidebarOpen(false)
@@ -63,14 +69,27 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto p-2 space-y-0.5">
-        <Link
-          href="/"
-          onClick={closeDrawer}
-          className={cn(navItem, pathname === "/" && "nav-item-active rounded-l-none")}
-        >
-          <ListTodo size={16} className="text-primary" />
-          <span className="truncate">All</span>
-        </Link>
+        <div className="group flex items-center">
+          <Link
+            href="/"
+            onClick={closeDrawer}
+            className={cn(
+              "flex flex-1 items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium transition-all hover:bg-surface",
+              pathname === "/" && "nav-item-active rounded-l-none"
+            )}
+          >
+            <ListTodo size={16} className="text-primary" />
+            <span className="truncate">All</span>
+          </Link>
+          <button
+            onClick={() => setEditingProject(null)}
+            aria-label="New project"
+            title="New project"
+            className="flex h-7 w-7 items-center justify-center rounded transition-colors hover:bg-surface lg:h-6 lg:w-6"
+          >
+            <Plus size={15} className="text-foreground-muted" />
+          </button>
+        </div>
 
         <Link
           href="/inbox"
@@ -122,42 +141,43 @@ export function Sidebar() {
       </nav>
 
       <div className="border-t-2 border-border-strong p-2 space-y-2">
-        <Link
-          href="/plan"
-          onClick={closeDrawer}
-          className={cn(navItem, isPlan && "nav-item-active rounded-l-none")}
-        >
-          <CalendarClock size={16} className="text-accent" />
-          <span className="truncate">Plan</span>
-        </Link>
+        <div className="grid grid-cols-2 gap-1">
+          <Link
+            href="/plan"
+            onClick={closeDrawer}
+            className={cn(navItem, "justify-center", isPlan && "nav-item-active rounded-l-none")}
+          >
+            <CalendarClock size={16} className="text-accent" />
+            <span className="truncate">Timeline</span>
+          </Link>
 
-        <Link
-          href="/plan-md"
-          onClick={closeDrawer}
-          className={cn(navItem, isPlanMd && "nav-item-active rounded-l-none")}
-        >
-          <FileText size={16} className="text-accent" />
-          <span className="truncate">Plan MD</span>
-        </Link>
+          <Link
+            href="/plan-md"
+            onClick={closeDrawer}
+            className={cn(navItem, "justify-center", isPlanMd && "nav-item-active rounded-l-none")}
+          >
+            <FileText size={16} className="text-accent" />
+            <span className="truncate">Planmd</span>
+          </Link>
+        </div>
 
-        <Link
-          href="/archived"
-          onClick={closeDrawer}
-          className={cn(navItem, isArchived && "nav-item-active rounded-l-none")}
-        >
-          <Archive size={16} className="text-accent" />
-          <span className="truncate">Archived</span>
-        </Link>
-
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full h-8 text-xs"
-          onClick={() => setEditingProject(null)}
-        >
-          <Plus size={14} />
-          New Project
-        </Button>
+        <div className="grid grid-cols-3 gap-1 pt-1">
+          {bottomNav.map(({ href, label, icon: Icon, active }) => (
+            <Link
+              key={href}
+              href={href}
+              onClick={closeDrawer}
+              title={label}
+              className={cn(
+                "flex flex-col items-center gap-1 rounded-lg px-1 py-2 text-[10px] font-bold transition-all hover:bg-surface",
+                active ? "bg-surface text-primary shadow-brutal-xs" : "text-foreground-muted"
+              )}
+            >
+              <Icon size={16} className={active ? "text-primary" : "text-accent"} />
+              <span className="truncate">{label}</span>
+            </Link>
+          ))}
+        </div>
       </div>
       </aside>
 

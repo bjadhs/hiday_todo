@@ -17,6 +17,7 @@ export async function createPlanItem(item: PlanItem): Promise<void> {
     startMinutes: item.startMinutes,
     durationMinutes: item.durationMinutes,
     projectId: item.projectId,
+    tags: item.tags,
   })
   await notifyChange()
 }

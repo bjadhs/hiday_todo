@@ -134,6 +134,7 @@ export function PlanTimeline() {
   const { planItems, projects, addPlanItem } = useTodoStore()
   const sessions = useTodoStore((s) => s.sessions)
   const todos = useTodoStore((s) => s.todos)
+  const planDefaultProjectId = useTodoStore((s) => s.planDefaultProjectId)
   const [selectedDate, setSelectedDate] = useState(() => msToDateString(new Date().getTime()))
   const [editValue, setEditValue] = useState("")
   const [editError, setEditError] = useState<string | null>(null)
@@ -163,8 +164,8 @@ export function PlanTimeline() {
         snappedNow < p.startMinutes + p.durationMinutes
     )
     if (existing) return null
-    return { startMinutes: snappedNow, projectId: "__inbox__" as const }
-  }, [isToday, planItems, today, snappedNow])
+    return { startMinutes: snappedNow, projectId: planDefaultProjectId }
+  }, [isToday, planItems, today, snappedNow, planDefaultProjectId])
 
   const [inlineEdit, setInlineEdit] = useState<InlineEdit | null>(defaultEdit)
 
@@ -279,11 +280,11 @@ export function PlanTimeline() {
 
       // Overlap is allowed now — clicking an occupied slot adds a parallel task,
       // which splits the width with whatever is already there.
-      setInlineEdit({ startMinutes, projectId: "__inbox__" })
+      setInlineEdit({ startMinutes, projectId: planDefaultProjectId })
       setEditValue("")
       setEditError(null)
     },
-    []
+    [planDefaultProjectId]
   )
 
   function handleSave() {

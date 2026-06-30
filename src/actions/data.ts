@@ -3,6 +3,7 @@
 import { and, asc, isNull, isNotNull, lt } from "drizzle-orm"
 import { getDb, schema } from "@/lib/db"
 import { assertAuthed } from "@/lib/auth-server"
+import { getSettings } from "@/actions/settings"
 import { ARCHIVE_RETENTION_MS } from "@/lib/archive"
 import type { Project, Todo, PlanItem, FocusSession, DayPeriod, KanbanStatus } from "@/lib/types"
 
@@ -32,6 +33,7 @@ const mapPlan = (p: PlanRow): PlanItem => ({
   startMinutes: p.startMinutes,
   durationMinutes: p.durationMinutes,
   projectId: p.projectId,
+  tags: p.tags,
   deletedAt: p.deletedAt ?? null,
 })
 
@@ -58,6 +60,7 @@ export async function getAllData(): Promise<{
   archivedTodos: Todo[]
   archivedPlanItems: PlanItem[]
   archivedSessions: FocusSession[]
+  settings: Record<string, string>
 }> {
   await assertAuthed()
   const db = getDb()
@@ -78,6 +81,7 @@ export async function getAllData(): Promise<{
     archivedTodoRows,
     archivedPlanRows,
     archivedSessionRows,
+    settings,
   ] = await Promise.all([
     db.select().from(schema.projects).orderBy(asc(schema.projects.sortOrder)),
     db.select().from(schema.todos).where(isNull(schema.todos.deletedAt)).orderBy(asc(schema.todos.position)),
@@ -86,6 +90,7 @@ export async function getAllData(): Promise<{
     db.select().from(schema.todos).where(isNotNull(schema.todos.deletedAt)),
     db.select().from(schema.planItems).where(isNotNull(schema.planItems.deletedAt)),
     db.select().from(schema.sessions).where(isNotNull(schema.sessions.deletedAt)),
+    getSettings(),
   ])
 
   const projects: Project[] = projectRows.map((p) => ({
@@ -104,5 +109,6 @@ export async function getAllData(): Promise<{
     archivedTodos: archivedTodoRows.map(mapTodo),
     archivedPlanItems: archivedPlanRows.map(mapPlan),
     archivedSessions: archivedSessionRows.map(mapSession),
+    settings,
   }
 }
